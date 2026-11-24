@@ -128,12 +128,14 @@ class MainActivity : ComponentActivity() {
                         }
 
                         Screen.ACTIVE_NAVIGATION -> {
+                            val mapUiState by mapViewModel.uiState.collectAsState()
                             NavigationScreen(
                                 ferrostarBridge = ferrostarBridge,
                                 spotifyState = spotifyState,
                                 waMessages = waMessages,
                                 batteryPercentage = batteryStatus.percentage,
                                 isCharging = batteryStatus.isCharging,
+                                styleJson = mapUiState.activeStyleJson,
                                 onTogglePlayPause = { spotifyManager.togglePlayPause() },
                                 onSkipNext = { spotifyManager.skipNext() },
                                 onSkipPrevious = { spotifyManager.skipPrevious() },

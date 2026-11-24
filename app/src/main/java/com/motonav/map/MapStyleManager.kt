@@ -18,8 +18,40 @@ class MapStyleManager @Inject constructor(
     private val preferencesStore: PreferencesStore
 ) {
     companion object {
-        const val ONLINE_STYLE_LIBERTY = "https://tiles.openfreemap.org/styles/liberty/style.json"
-        const val ONLINE_STYLE_BRIGHT = "https://tiles.openfreemap.org/styles/bright/style.json"
+        const val ONLINE_STYLE_LIBERTY = "https://tiles.openfreemap.org/styles/liberty"
+        const val ONLINE_STYLE_BRIGHT = "https://tiles.openfreemap.org/styles/bright"
+        const val ONLINE_STYLE_DARK = "https://tiles.openfreemap.org/styles/dark"
+        const val ONLINE_FALLBACK = "https://demotiles.maplibre.org/style.json"
+
+        /**
+         * Standard OpenStreetMap raster style fallback JSON.
+         * 100% free, guaranteed to render on any MapLibre client without external vector sprites/fonts.
+         */
+        const val OSM_RASTER_FALLBACK = """
+        {
+          "version": 8,
+          "name": "OSM Raster",
+          "sources": {
+            "osm-raster-tiles": {
+              "type": "raster",
+              "tiles": [
+                "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+              ],
+              "tileSize": 256,
+              "attribution": "© OpenStreetMap contributors"
+            }
+          },
+          "layers": [
+            {
+              "id": "osm-raster-layer",
+              "type": "raster",
+              "source": "osm-raster-tiles",
+              "minzoom": 0,
+              "maxzoom": 19
+            }
+          ]
+        }
+        """
     }
 
     /**
@@ -40,10 +72,10 @@ class MapStyleManager @Inject constructor(
             buildLocalPmtilesStyle(pmtilesFile, isDarkTheme)
         } else if (!forceOffline) {
             // Fallback to free OpenFreeMap without API keys
-            ONLINE_STYLE_LIBERTY
+            if (isDarkTheme) ONLINE_STYLE_DARK else ONLINE_STYLE_LIBERTY
         } else {
-            // Offline fallback template
-            buildLocalPmtilesStyle(pmtilesFile, isDarkTheme)
+            // Offline fallback template or OSM raster
+            OSM_RASTER_FALLBACK
         }
     }
 

@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
@@ -41,7 +42,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,6 +61,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.motonav.data.model.LatLng
 import com.motonav.integrations.spotify.MiniSpotifyPlayer
 import com.motonav.integrations.whatsapp.WALocationPeekWidget
+import com.motonav.map.MapStyleManager
 import com.motonav.ui.screens.map.components.MapSearchBar
 import com.motonav.ui.screens.map.components.PoiQuickFilters
 import com.motonav.ui.widgets.BatteryWidget
@@ -70,6 +74,7 @@ import org.maplibre.android.annotations.PolylineOptions
 import org.maplibre.android.geometry.LatLng as MapLibreLatLng
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.MapLibreMap
+import org.maplibre.android.maps.Style
 
 @Composable
 fun MapScreen(
@@ -83,6 +88,7 @@ fun MapScreen(
     val spotifyState by viewModel.spotifyState.collectAsState()
     val waMessages by viewModel.waMessages.collectAsState()
     val batteryStatus by viewModel.batteryStatus.collectAsState()
+    var recenterTrigger by remember { mutableStateOf(0) }
 
     Box(
         modifier = modifier
@@ -92,6 +98,7 @@ fun MapScreen(
         // High-Contrast Motorcycle Map Canvas
         MapViewportCanvas(
             uiState = uiState,
+            recenterTrigger = recenterTrigger,
             onPoiClicked = { viewModel.onPoiSelected(it) },
             modifier = Modifier.fillMaxSize()
         )
@@ -263,6 +270,22 @@ fun MapScreen(
                 isCharging = batteryStatus.isCharging
             )
 
+            // Recenter on my GPS location button
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xEE1E293B))
+                    .clickable { recenterTrigger++ },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MyLocation,
+                    contentDescription = "Recenter on Me",
+                    tint = Color(0xFF38BDF8)
+                )
+            }
+
             // Quick Shortcut buttons for Settings & State Downloads
             Box(
                 modifier = Modifier
@@ -428,6 +451,7 @@ fun MapScreen(
 @Composable
 fun MapViewportCanvas(
     uiState: MapUiState,
+    recenterTrigger: Int,
     onPoiClicked: (com.motonav.data.local.db.entities.PoiEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -458,57 +482,81 @@ fun MapViewportCanvas(
         }
     }
 
+    var mapInstance by remember { mutableStateOf<MapLibreMap?>(null) }
+    var loadedStyleKey by remember { mutableStateOf<String?>(null) }
+    var isStyleLoaded by remember { mutableStateOf(false) }
+    var lastSelectedPoiId by remember { mutableStateOf<Long?>(null) }
+    var lastHandledRecenter by remember { mutableStateOf(0) }
+    var hasCenteredInitialLocation by remember { mutableStateOf(false) }
+
+    val resolvedStyle = remember(uiState.activeStyleJson, uiState.isDarkTheme) {
+        when {
+            uiState.activeStyleJson.isNotBlank() && !uiState.activeStyleJson.contains("tiles.openfreemap.org/styles/liberty/style.json") -> {
+                uiState.activeStyleJson
+            }
+            uiState.isDarkTheme -> MapStyleManager.ONLINE_STYLE_DARK
+            else -> MapStyleManager.ONLINE_STYLE_LIBERTY
+        }
+    }
+
     Box(modifier = modifier.fillMaxSize()) {
         AndroidView(
-            factory = { mapView },
-            modifier = Modifier.fillMaxSize(),
-            update = { view ->
-                view.getMapAsync { map ->
-                    val styleUrl = if (uiState.activeStyleJson.isNotBlank() && (uiState.activeStyleJson.startsWith("http") || uiState.activeStyleJson.startsWith("pmtiles"))) {
-                        uiState.activeStyleJson
-                    } else {
-                        "https://tiles.openfreemap.org/styles/liberty/style.json"
-                    }
+            factory = {
+                mapView.apply {
+                    getMapAsync { map ->
+                        mapInstance = map
+                        map.uiSettings.isCompassEnabled = false
+                        map.uiSettings.isLogoEnabled = false
+                        map.uiSettings.isAttributionEnabled = false
 
-                    map.setStyle(styleUrl) { style ->
-                        map.clear()
-
-                        val userPos = MapLibreLatLng(uiState.userLocation.latitude, uiState.userLocation.longitude)
-                        map.addMarker(
-                            MarkerOptions()
-                                .position(userPos)
-                                .title("Your Location")
-                        )
-
-                        // If a motorcycle route is calculated, draw the path line
-                        uiState.calculatedRoute?.let { route ->
-                            val polyPoints = route.points.map { MapLibreLatLng(it.latitude, it.longitude) }
-                            if (polyPoints.isNotEmpty()) {
-                                map.addPolyline(
-                                    PolylineOptions()
-                                        .addAll(polyPoints)
-                                        .color(AndroidColor.parseColor("#0284C7"))
-                                        .width(6f)
-                                )
-                                val dest = polyPoints.last()
-                                map.addMarker(
-                                    MarkerOptions()
-                                        .position(dest)
-                                        .title(uiState.selectedPoi?.name ?: "Destination")
-                                )
+                        loadMapScreenStyle(map, mapView, resolvedStyle) {
+                            loadedStyleKey = resolvedStyle
+                            isStyleLoaded = true
+                            refreshMapScreenAnnotations(map, uiState)
+                            if (!hasCenteredInitialLocation) {
+                                val userPos = MapLibreLatLng(uiState.userLocation.latitude, uiState.userLocation.longitude)
+                                map.cameraPosition = CameraPosition.Builder()
+                                    .target(userPos)
+                                    .zoom(12.5)
+                                    .build()
+                                hasCenteredInitialLocation = true
                             }
                         }
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxSize(),
+            update = { _ ->
+                val map = mapInstance ?: return@AndroidView
 
-                        // Animate to destination if selected, otherwise center on rider
-                        if (uiState.selectedPoi != null) {
-                            val target = MapLibreLatLng(uiState.selectedPoi.latitude, uiState.selectedPoi.longitude)
-                            map.animateCamera(CameraUpdateFactory.newLatLngZoom(target, 14.0))
-                        } else if (uiState.calculatedRoute == null) {
-                            map.cameraPosition = CameraPosition.Builder()
-                                .target(userPos)
-                                .zoom(12.0)
-                                .build()
-                        }
+                // 1. Reload style ONLY if the target style actually changed
+                if (loadedStyleKey != resolvedStyle) {
+                    isStyleLoaded = false
+                    loadMapScreenStyle(map, mapView, resolvedStyle) {
+                        loadedStyleKey = resolvedStyle
+                        isStyleLoaded = true
+                        refreshMapScreenAnnotations(map, uiState)
+                    }
+                    return@AndroidView
+                }
+
+                // 2. If style is loaded, refresh markers and polyline
+                if (isStyleLoaded) {
+                    refreshMapScreenAnnotations(map, uiState)
+
+                    // Check for Recenter button press
+                    if (recenterTrigger != lastHandledRecenter) {
+                        lastHandledRecenter = recenterTrigger
+                        val userPos = MapLibreLatLng(uiState.userLocation.latitude, uiState.userLocation.longitude)
+                        map.animateCamera(CameraUpdateFactory.newLatLngZoom(userPos, 14.5), 1000)
+                    }
+
+                    // Animate to POI if a new POI was selected
+                    val currentPoiId = uiState.selectedPoi?.osmId
+                    if (currentPoiId != null && currentPoiId != lastSelectedPoiId) {
+                        lastSelectedPoiId = currentPoiId
+                        val dest = MapLibreLatLng(uiState.selectedPoi.latitude, uiState.selectedPoi.longitude)
+                        map.animateCamera(CameraUpdateFactory.newLatLngZoom(dest, 13.5), 1200)
                     }
                 }
             }
@@ -526,6 +574,71 @@ fun MapViewportCanvas(
                 text = "🗺️ MapLibre · ${uiState.activeRegionId.replace('_', ' ').uppercase()}",
                 color = Color.LightGray,
                 fontSize = 11.sp
+            )
+        }
+    }
+}
+
+private fun loadMapScreenStyle(
+    map: MapLibreMap,
+    mapView: MapView,
+    styleTarget: String,
+    onLoaded: () -> Unit
+) {
+    val builder = if (styleTarget.trim().startsWith("{")) {
+        Style.Builder().fromJson(styleTarget)
+    } else {
+        Style.Builder().fromUri(styleTarget)
+    }
+
+    mapView.addOnDidFailLoadingMapListener { error ->
+        android.util.Log.e("MapScreen", "Failed to load style $styleTarget: $error, falling back to OSM raster")
+        try {
+            map.setStyle(Style.Builder().fromJson(MapStyleManager.OSM_RASTER_FALLBACK)) {
+                onLoaded()
+            }
+        } catch (ignored: Exception) {}
+    }
+
+    try {
+        map.setStyle(builder) {
+            onLoaded()
+        }
+    } catch (e: Exception) {
+        try {
+            map.setStyle(Style.Builder().fromJson(MapStyleManager.OSM_RASTER_FALLBACK)) {
+                onLoaded()
+            }
+        } catch (ignored: Exception) {}
+    }
+}
+
+private fun refreshMapScreenAnnotations(map: MapLibreMap, uiState: MapUiState) {
+    map.clear()
+
+    // 1. Rider Marker
+    val userPos = MapLibreLatLng(uiState.userLocation.latitude, uiState.userLocation.longitude)
+    map.addMarker(
+        MarkerOptions()
+            .position(userPos)
+            .title("Your Location")
+    )
+
+    // 2. Route polyline & destination marker
+    uiState.calculatedRoute?.let { route ->
+        val polyPoints = route.points.map { MapLibreLatLng(it.latitude, it.longitude) }
+        if (polyPoints.isNotEmpty()) {
+            map.addPolyline(
+                PolylineOptions()
+                    .addAll(polyPoints)
+                    .color(AndroidColor.parseColor("#0284C7"))
+                    .width(7f)
+            )
+            val dest = polyPoints.last()
+            map.addMarker(
+                MarkerOptions()
+                    .position(dest)
+                    .title(uiState.selectedPoi?.name ?: "Destination")
             )
         }
     }

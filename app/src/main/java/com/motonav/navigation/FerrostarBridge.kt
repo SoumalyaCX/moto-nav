@@ -23,7 +23,9 @@ sealed class NavigationStatus {
         val remainingTimeTotalMillis: Long,
         val currentSpeedKmh: Float,
         val currentBearing: Float,
-        val isOffRoute: Boolean = false
+        val isOffRoute: Boolean = false,
+        val route: NavigationRoute? = null,
+        val riderLocation: LatLng? = null
     ) : NavigationStatus()
     object Arrived : NavigationStatus()
 }
@@ -64,7 +66,9 @@ class FerrostarBridge @Inject constructor(
             remainingDistanceTotalMeters = route.totalDistanceMeters,
             remainingTimeTotalMillis = route.totalTimeMillis,
             currentSpeedKmh = 0f,
-            currentBearing = 0f
+            currentBearing = 0f,
+            route = route,
+            riderLocation = route.points.firstOrNull() ?: initialManeuver.coordinate
         )
 
         // Announce first maneuver
@@ -129,7 +133,9 @@ class FerrostarBridge @Inject constructor(
             remainingTimeTotalMillis = remainingMillis,
             currentSpeedKmh = userLoc.speedKmh,
             currentBearing = userLoc.bearing,
-            isOffRoute = isOffRoute
+            isOffRoute = isOffRoute,
+            route = route,
+            riderLocation = userLoc.coordinate
         )
     }
 }
