@@ -75,6 +75,7 @@ fun NavigationScreen(
     modifier: Modifier = Modifier
 ) {
     val navStatus by ferrostarBridge.navigationState.collectAsState()
+    var isFrontFacing by remember { mutableStateOf(true) } // Motorcycle Front-Facing mode by default
 
     Box(
         modifier = modifier
@@ -88,6 +89,7 @@ fun NavigationScreen(
                     status = status,
                     styleJson = styleJson,
                     isDarkTheme = isDarkTheme,
+                    isFrontFacing = isFrontFacing,
                     modifier = Modifier.fillMaxSize()
                 )
 
@@ -112,7 +114,11 @@ fun NavigationScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    CompassWidget(bearing = status.currentBearing)
+                    CompassWidget(
+                        bearing = status.currentBearing,
+                        isFrontFacing = isFrontFacing,
+                        onClick = { isFrontFacing = !isFrontFacing }
+                    )
                     SpeedIndicator(speedKmh = status.currentSpeedKmh)
                     BatteryWidget(percentage = batteryPercentage, isCharging = isCharging)
                 }
@@ -210,6 +216,7 @@ fun NavigationMapViewport(
     status: NavigationStatus.Navigating,
     styleJson: String,
     isDarkTheme: Boolean,
+    isFrontFacing: Boolean,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -267,7 +274,7 @@ fun NavigationMapViewport(
                     loadNavMapStyle(map, mapView, resolvedStyle) {
                         loadedStyleKey = resolvedStyle
                         isMapReady = true
-                        updateNavCameraAndRoute(map, status, riderCoord)
+                        updateNavCameraAndRoute(map, status, riderCoord, isFrontFacing)
                     }
                 }
             }
@@ -281,10 +288,10 @@ fun NavigationMapViewport(
                 loadNavMapStyle(map, mapView, resolvedStyle) {
                     loadedStyleKey = resolvedStyle
                     isMapReady = true
-                    updateNavCameraAndRoute(map, status, riderCoord)
+                    updateNavCameraAndRoute(map, status, riderCoord, isFrontFacing)
                 }
             } else if (isMapReady) {
-                updateNavCameraAndRoute(map, status, riderCoord)
+                updateNavCameraAndRoute(map, status, riderCoord, isFrontFacing)
             }
         }
     )
@@ -327,19 +334,24 @@ private fun loadNavMapStyle(
 private fun updateNavCameraAndRoute(
     map: MapLibreMap,
     status: NavigationStatus.Navigating,
-    riderCoord: LatLng
+    riderCoord: LatLng,
+    isFrontFacing: Boolean
 ) {
     val riderPos = MapLibreLatLng(riderCoord.latitude, riderCoord.longitude)
 
-    // 1. 3D Motorcycle Perspective Camera
+    // Camera: Front-Facing (3D cockpit view oriented with motorcycle heading) vs North-Facing (2D top-down North up)
+    val targetBearing = if (isFrontFacing) status.currentBearing.toDouble() else 0.0
+    val targetTilt = if (isFrontFacing) 50.0 else 0.0
+    val targetZoom = if (isFrontFacing) 16.5 else 15.0
+
     val cameraPosition = CameraPosition.Builder()
         .target(riderPos)
-        .zoom(16.5) // Detailed road & junction level
-        .tilt(50.0) // 3D perspective ahead
-        .bearing(status.currentBearing.toDouble()) // Direction of travel pointing UP
+        .zoom(targetZoom)
+        .tilt(targetTilt)
+        .bearing(targetBearing)
         .build()
 
-    map.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition), 1000)
+    map.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition), 700)
 
     // 2. Render Route Polyline & Markers
     map.clear()

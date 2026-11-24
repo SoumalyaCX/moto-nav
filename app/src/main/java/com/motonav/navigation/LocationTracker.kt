@@ -15,6 +15,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,18 +30,45 @@ data class UserLocationState(
 
 @Singleton
 class LocationTracker @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val orientationManager: OrientationManager
 ) {
     private val fusedClient: FusedLocationProviderClient by lazy {
         LocationServices.getFusedLocationProviderClient(context)
     }
 
     /**
-     * Continuous GPS location updates optimized for motorcycle high-speed riding.
-     * High accuracy, 1 second interval, lowest latency.
+     * Continuous GPS location updates fused with hardware compass sensor.
+     * High accuracy, lowest latency.
      */
     @SuppressLint("MissingPermission")
     fun getLocationUpdates(): Flow<UserLocationState> = callbackFlow {
+        var lastLocation: Location? = null
+        var currentHeading: Float = 0f
+
+        // Continuously collect hardware compass heading
+        val headingJob = launch {
+            orientationManager.getHeadingUpdates().collect { heading ->
+                currentHeading = heading
+                lastLocation?.let { loc ->
+                    // When stopped or moving slowly (< 3 km/h), emit compass heading updates
+                    // so front-facing map rotation responds immediately to turning handlebars or phone
+                    if (!loc.hasBearing() || (loc.speed * 3.6f) < 3.0f) {
+                        trySend(
+                            UserLocationState(
+                                coordinate = LatLng(loc.latitude, loc.longitude),
+                                speedKmh = (loc.speed * 3.6f),
+                                bearing = heading,
+                                altitude = loc.altitude,
+                                accuracyMeters = loc.accuracy,
+                                timestamp = System.currentTimeMillis()
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
         val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000L)
             .setMinUpdateIntervalMillis(500L)
             .setMinUpdateDistanceMeters(1.0f)
@@ -50,10 +78,20 @@ class LocationTracker @Inject constructor(
         val callback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
                 result.lastLocation?.let { loc ->
+                    lastLocation = loc
+                    // If moving at speed (> 3 km/h) and has GPS bearing, use GPS bearing; otherwise use compass heading
+                    val effectiveBearing = if (loc.hasBearing() && (loc.speed * 3.6f) >= 3.0f) {
+                        loc.bearing
+                    } else if (currentHeading > 0f) {
+                        currentHeading
+                    } else {
+                        loc.bearing
+                    }
+
                     val state = UserLocationState(
                         coordinate = LatLng(loc.latitude, loc.longitude),
-                        speedKmh = (loc.speed * 3.6f), // m/s to km/h
-                        bearing = loc.bearing,
+                        speedKmh = (loc.speed * 3.6f),
+                        bearing = effectiveBearing,
                         altitude = loc.altitude,
                         accuracyMeters = loc.accuracy,
                         timestamp = loc.time
@@ -70,6 +108,7 @@ class LocationTracker @Inject constructor(
         }
 
         awaitClose {
+            headingJob.cancel()
             fusedClient.removeLocationUpdates(callback)
         }
     }

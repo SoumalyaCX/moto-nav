@@ -1,6 +1,8 @@
 package com.motonav.ui.widgets
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -23,28 +25,51 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun CompassWidget(
     bearing: Float,
+    isFrontFacing: Boolean = false,
+    onClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Box(
         modifier = modifier
-            .size(48.dp)
+            .size(52.dp)
             .clip(CircleShape)
-            .background(Color(0xDD0F172A)),
+            .background(Color(0xEE0F172A))
+            .clickable { onClick() }
+            .padding(4.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = "▲",
-            color = Color.Red,
-            fontSize = 18.sp,
-            modifier = Modifier.rotate(bearing)
-        )
-        Text(
-            text = "N",
-            color = Color.White,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.align(Alignment.TopCenter).padding(top = 2.dp)
-        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            if (isFrontFacing) {
+                // Front-Facing Mode icon: Indicates forward motorcycle cockpit perspective
+                Text(
+                    text = "🏍️",
+                    fontSize = 17.sp
+                )
+                Text(
+                    text = "FRONT",
+                    color = Color(0xFF38BDF8),
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+            } else {
+                // North-Facing Mode icon: Red compass needle pointing to North
+                Text(
+                    text = "▲",
+                    color = Color(0xFFEF4444),
+                    fontSize = 17.sp,
+                    modifier = Modifier.rotate(-bearing)
+                )
+                Text(
+                    text = "NORTH",
+                    color = Color.White,
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
     }
 }
 

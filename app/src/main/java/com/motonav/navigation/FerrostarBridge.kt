@@ -59,6 +59,13 @@ class FerrostarBridge @Inject constructor(
         lastAnnouncedImmediateManeuverIndex = -1
 
         val initialManeuver = route.maneuvers.firstOrNull() ?: return
+        val startLoc = route.points.firstOrNull() ?: initialManeuver.coordinate
+        val initialBearing = if (route.points.size >= 2) {
+            calculateBearing(route.points[0], route.points[1])
+        } else {
+            0f
+        }
+
         _navigationState.value = NavigationStatus.Navigating(
             currentStepIndex = 0,
             currentManeuver = initialManeuver,
@@ -66,9 +73,9 @@ class FerrostarBridge @Inject constructor(
             remainingDistanceTotalMeters = route.totalDistanceMeters,
             remainingTimeTotalMillis = route.totalTimeMillis,
             currentSpeedKmh = 0f,
-            currentBearing = 0f,
+            currentBearing = initialBearing,
             route = route,
-            riderLocation = route.points.firstOrNull() ?: initialManeuver.coordinate
+            riderLocation = startLoc
         )
 
         // Announce first maneuver
@@ -139,5 +146,17 @@ class FerrostarBridge @Inject constructor(
             route = route,
             riderLocation = userLoc.coordinate
         )
+    }
+
+    private fun calculateBearing(from: LatLng, to: LatLng): Float {
+        val lat1 = Math.toRadians(from.latitude)
+        val lon1 = Math.toRadians(from.longitude)
+        val lat2 = Math.toRadians(to.latitude)
+        val lon2 = Math.toRadians(to.longitude)
+        val dLon = lon2 - lon1
+        val y = Math.sin(dLon) * Math.cos(lat2)
+        val x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon)
+        val brng = Math.toDegrees(Math.atan2(y, x))
+        return ((brng + 360) % 360).toFloat()
     }
 }

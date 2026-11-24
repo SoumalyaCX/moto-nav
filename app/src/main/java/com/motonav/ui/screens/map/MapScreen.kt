@@ -89,6 +89,7 @@ fun MapScreen(
     val waMessages by viewModel.waMessages.collectAsState()
     val batteryStatus by viewModel.batteryStatus.collectAsState()
     var recenterTrigger by remember { mutableStateOf(0) }
+    var isFrontFacing by remember { mutableStateOf(false) }
 
     Box(
         modifier = modifier
@@ -99,6 +100,7 @@ fun MapScreen(
         MapViewportCanvas(
             uiState = uiState,
             recenterTrigger = recenterTrigger,
+            isFrontFacing = isFrontFacing,
             onPoiClicked = { viewModel.onPoiSelected(it) },
             modifier = Modifier.fillMaxSize()
         )
@@ -263,7 +265,11 @@ fun MapScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            CompassWidget(bearing = uiState.bearing)
+            CompassWidget(
+                bearing = uiState.bearing,
+                isFrontFacing = isFrontFacing,
+                onClick = { isFrontFacing = !isFrontFacing }
+            )
             SpeedIndicator(speedKmh = uiState.speedKmh)
             BatteryWidget(
                 percentage = batteryStatus.percentage,
@@ -452,6 +458,7 @@ fun MapScreen(
 fun MapViewportCanvas(
     uiState: MapUiState,
     recenterTrigger: Int,
+    isFrontFacing: Boolean,
     onPoiClicked: (com.motonav.data.local.db.entities.PoiEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -488,6 +495,7 @@ fun MapViewportCanvas(
     var lastSelectedPoiId by remember { mutableStateOf<Long?>(null) }
     var lastHandledRecenter by remember { mutableStateOf(0) }
     var hasCenteredInitialLocation by remember { mutableStateOf(false) }
+    var lastWasFrontFacing by remember { mutableStateOf(false) }
 
     val resolvedStyle = remember(uiState.activeStyleJson, uiState.isDarkTheme) {
         if (uiState.activeStyleJson.trim().startsWith("{")) {
@@ -516,9 +524,13 @@ fun MapViewportCanvas(
                             refreshMapScreenAnnotations(map, uiState)
                             if (!hasCenteredInitialLocation) {
                                 val userPos = MapLibreLatLng(uiState.userLocation.latitude, uiState.userLocation.longitude)
+                                val initialBearing = if (isFrontFacing) uiState.bearing.toDouble() else 0.0
+                                val initialTilt = if (isFrontFacing) 35.0 else 0.0
                                 map.cameraPosition = CameraPosition.Builder()
                                     .target(userPos)
-                                    .zoom(12.5)
+                                    .zoom(14.0)
+                                    .bearing(initialBearing)
+                                    .tilt(initialTilt)
                                     .build()
                                 hasCenteredInitialLocation = true
                             }
@@ -545,12 +557,40 @@ fun MapViewportCanvas(
                 if (isStyleLoaded) {
                     refreshMapScreenAnnotations(map, uiState)
 
+                    val userPos = MapLibreLatLng(uiState.userLocation.latitude, uiState.userLocation.longitude)
+                    val targetBearing = if (isFrontFacing) uiState.bearing.toDouble() else 0.0
+                    val targetTilt = if (isFrontFacing) 35.0 else 0.0
+
                     // Check for Recenter button press
                     if (recenterTrigger != lastHandledRecenter) {
                         lastHandledRecenter = recenterTrigger
-                        val userPos = MapLibreLatLng(uiState.userLocation.latitude, uiState.userLocation.longitude)
-                        map.animateCamera(CameraUpdateFactory.newLatLngZoom(userPos, 14.5), 1000)
+                        val cameraPosition = CameraPosition.Builder()
+                            .target(userPos)
+                            .zoom(14.5)
+                            .bearing(targetBearing)
+                            .tilt(targetTilt)
+                            .build()
+                        map.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition), 800)
+                    } else if (isFrontFacing) {
+                        // Keep camera following user position and bearing in Front-Facing mode
+                        val cameraPosition = CameraPosition.Builder()
+                            .target(userPos)
+                            .zoom(map.cameraPosition.zoom.coerceAtLeast(14.0))
+                            .bearing(targetBearing)
+                            .tilt(targetTilt)
+                            .build()
+                        map.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition), 500)
+                    } else if (lastWasFrontFacing && !isFrontFacing) {
+                        // User switched from Front-Facing to North-Up mode: reset bearing to 0.0 and tilt to 0.0
+                        val cameraPosition = CameraPosition.Builder()
+                            .target(userPos)
+                            .zoom(map.cameraPosition.zoom)
+                            .bearing(0.0)
+                            .tilt(0.0)
+                            .build()
+                        map.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition), 600)
                     }
+                    lastWasFrontFacing = isFrontFacing
 
                     // Animate to POI if a new POI was selected
                     val currentPoiId = uiState.selectedPoi?.osmId
