@@ -51,6 +51,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -809,7 +810,8 @@ private fun updateMapCameraAndLayers(
     val targetBearing = if (isFrontFacing) uiState.bearing.toDouble() else 0.0
     val targetTilt = if (isFrontFacing) 45.0 else 0.0
 
-    if (currentCamera.target == null || (currentCamera.target.latitude == 0.0 && currentCamera.target.longitude == 0.0)) {
+    val currentTarget = currentCamera.target
+    if (currentTarget == null || (currentTarget.latitude == 0.0 && currentTarget.longitude == 0.0)) {
         val cameraPosition = CameraPosition.Builder()
             .target(userPos)
             .zoom(14.5)
