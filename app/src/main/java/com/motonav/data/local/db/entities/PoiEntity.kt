@@ -13,7 +13,8 @@ enum class PoiCategory {
     HOSPITAL,
     HOTEL,
     VIEWPOINT,
-    WATER
+    WATER,
+    CITY
 }
 
 @Entity(

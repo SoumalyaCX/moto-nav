@@ -53,6 +53,14 @@ interface PoiDao {
         SELECT * FROM pois 
         WHERE name LIKE '%' || :query || '%' 
            OR brand LIKE '%' || :query || '%'
+           OR address LIKE '%' || :query || '%'
+        ORDER BY 
+            CASE 
+                WHEN name LIKE :query || '%' THEN 1 
+                WHEN name LIKE '%' || :query || '%' THEN 2 
+                ELSE 3 
+            END,
+            name ASC
         LIMIT :limit
     """)
     suspend fun searchByName(query: String, limit: Int = 25): List<PoiEntity>

@@ -30,7 +30,11 @@ object AppModule {
         @ApplicationContext context: Context,
         scope: CoroutineScope
     ): MotoNavDatabase {
-        return MotoNavDatabase.buildDatabase(context, scope)
+        val db = MotoNavDatabase.buildDatabase(context, scope)
+        scope.launch(Dispatchers.IO) {
+            MotoNavDatabase.ensureInitialPoisSeeded(context, db)
+        }
+        return db
     }
 
     @Provides

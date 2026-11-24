@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.os.Build
 import com.motonav.data.local.MapFileManager
 import dagger.hilt.android.HiltAndroidApp
+import org.maplibre.android.MapLibre
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -27,6 +28,7 @@ class MotoNavApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        MapLibre.getInstance(this)
         createNotificationChannels()
 
         // Asynchronously initialize prepackaged map data (West Bengal)

@@ -25,11 +25,12 @@ data class PoiFilterItem(
 )
 
 val DEFAULT_POI_FILTERS = listOf(
+    PoiFilterItem(PoiCategory.CITY, "Towns / Cities", "🏙️"),
     PoiFilterItem(PoiCategory.PETROL, "Petrol Pump", "⛽"),
     PoiFilterItem(PoiCategory.DHABA, "Dhaba / Food", "🍛"),
     PoiFilterItem(PoiCategory.MECHANIC, "Mechanic / Repair", "🔧"),
-    PoiFilterItem(PoiCategory.ATM, "ATM", "🏧"),
-    PoiFilterItem(PoiCategory.VIEWPOINT, "Viewpoint", "🏔️")
+    PoiFilterItem(PoiCategory.VIEWPOINT, "Viewpoint", "🏔️"),
+    PoiFilterItem(PoiCategory.ATM, "ATM", "🏧")
 )
 
 @Composable
