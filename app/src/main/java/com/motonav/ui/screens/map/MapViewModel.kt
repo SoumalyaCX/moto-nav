@@ -75,19 +75,33 @@ class MapViewModel @Inject constructor(
             }
         }
 
-        // Initialize map style and initial POIs
+        // Observe dark mode preference continuously so map responds dynamically to Settings toggle
         viewModelScope.launch {
-            val darkModePref = preferencesStore.darkModePreferenceFlow.first()
-            val isDark = preferencesStore.shouldRenderDarkTheme(darkModePref)
-            val regionId = preferencesStore.activeRegionIdFlow.first()
-            val style = mapStyleManager.resolveActiveMapStyle(regionId = regionId, isDarkTheme = isDark)
+            preferencesStore.darkModePreferenceFlow.collect { pref ->
+                val isDark = preferencesStore.shouldRenderDarkTheme(pref)
+                val regionId = _uiState.value.activeRegionId
+                val style = mapStyleManager.resolveActiveMapStyle(regionId = regionId, isDarkTheme = isDark)
+                _uiState.value = _uiState.value.copy(
+                    isDarkTheme = isDark,
+                    activeStyleJson = style
+                )
+            }
+        }
 
-            _uiState.value = _uiState.value.copy(
-                activeStyleJson = style,
-                activeRegionId = regionId,
-                isDarkTheme = isDark
-            )
+        // Observe region changes continuously
+        viewModelScope.launch {
+            preferencesStore.activeRegionIdFlow.collect { regionId ->
+                val isDark = _uiState.value.isDarkTheme
+                val style = mapStyleManager.resolveActiveMapStyle(regionId = regionId, isDarkTheme = isDark)
+                _uiState.value = _uiState.value.copy(
+                    activeRegionId = regionId,
+                    activeStyleJson = style
+                )
+            }
+        }
 
+        // Initial POI load
+        viewModelScope.launch {
             loadNearbyPois()
         }
     }

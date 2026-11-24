@@ -136,6 +136,7 @@ class MainActivity : ComponentActivity() {
                                 batteryPercentage = batteryStatus.percentage,
                                 isCharging = batteryStatus.isCharging,
                                 styleJson = mapUiState.activeStyleJson,
+                                isDarkTheme = isDark,
                                 onTogglePlayPause = { spotifyManager.togglePlayPause() },
                                 onSkipNext = { spotifyManager.skipNext() },
                                 onSkipPrevious = { spotifyManager.skipPrevious() },

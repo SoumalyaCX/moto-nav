@@ -90,8 +90,8 @@ class FerrostarBridge @Inject constructor(
         val targetManeuver = route.maneuvers[currentManeuverIndex]
         val distanceToManeuver = userLoc.coordinate.distanceTo(targetManeuver.coordinate)
 
-        // Check for step advance (when within 20 meters of maneuver turn)
-        if (distanceToManeuver < 20.0 && currentManeuverIndex < route.maneuvers.size - 1) {
+        // Check for step advance (when within 35 meters of maneuver turn for motorcycle speeds)
+        if (distanceToManeuver < 35.0 && currentManeuverIndex < route.maneuvers.size - 1) {
             currentManeuverIndex++
             val nextManeuver = route.maneuvers[currentManeuverIndex]
             voiceGuidance.announceImmediateAction(nextManeuver)
@@ -106,7 +106,7 @@ class FerrostarBridge @Inject constructor(
             lastAnnouncedImmediateManeuverIndex = currentManeuverIndex
         }
 
-        // Check off-route threshold (> 40 meters away from entire route polyline)
+        // Check off-route threshold (> 45 meters away from entire route polyline)
         val minDistanceToPolyline = route.points.minOfOrNull { it.distanceTo(userLoc.coordinate) } ?: 0.0
         val isOffRoute = minDistanceToPolyline > 45.0
 
@@ -122,8 +122,10 @@ class FerrostarBridge @Inject constructor(
             }
         }
 
-        val remainingTotal = maxOf(0.0, route.totalDistanceMeters - (currentManeuverIndex * 500.0))
-        val remainingMillis = maxOf(0L, route.totalTimeMillis - (currentManeuverIndex * 35000L))
+        val remainingTotal = route.maneuvers.drop(currentManeuverIndex + 1).sumOf { it.distanceMeters } + distanceToManeuver
+        val remainingMillis = if (route.totalDistanceMeters > 0) {
+            ((remainingTotal / route.totalDistanceMeters) * route.totalTimeMillis).toLong()
+        } else 0L
 
         _navigationState.value = NavigationStatus.Navigating(
             currentStepIndex = currentManeuverIndex,

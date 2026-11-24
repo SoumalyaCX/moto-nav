@@ -490,12 +490,13 @@ fun MapViewportCanvas(
     var hasCenteredInitialLocation by remember { mutableStateOf(false) }
 
     val resolvedStyle = remember(uiState.activeStyleJson, uiState.isDarkTheme) {
-        when {
-            uiState.activeStyleJson.isNotBlank() && !uiState.activeStyleJson.contains("tiles.openfreemap.org/styles/liberty/style.json") -> {
-                uiState.activeStyleJson
-            }
-            uiState.isDarkTheme -> MapStyleManager.ONLINE_STYLE_DARK
-            else -> MapStyleManager.ONLINE_STYLE_LIBERTY
+        if (uiState.activeStyleJson.trim().startsWith("{")) {
+            // Local custom PMTiles vector style JSON
+            uiState.activeStyleJson
+        } else if (uiState.isDarkTheme) {
+            MapStyleManager.ONLINE_STYLE_DARK
+        } else {
+            MapStyleManager.ONLINE_STYLE_LIBERTY
         }
     }
 

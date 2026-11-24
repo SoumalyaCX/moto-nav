@@ -64,6 +64,7 @@ fun NavigationScreen(
     batteryPercentage: Int,
     isCharging: Boolean,
     styleJson: String = "",
+    isDarkTheme: Boolean = true,
     onTogglePlayPause: () -> Unit,
     onSkipNext: () -> Unit,
     onSkipPrevious: () -> Unit,
@@ -86,6 +87,7 @@ fun NavigationScreen(
                 NavigationMapViewport(
                     status = status,
                     styleJson = styleJson,
+                    isDarkTheme = isDarkTheme,
                     modifier = Modifier.fillMaxSize()
                 )
 
@@ -207,6 +209,7 @@ fun NavigationScreen(
 fun NavigationMapViewport(
     status: NavigationStatus.Navigating,
     styleJson: String,
+    isDarkTheme: Boolean,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -240,10 +243,13 @@ fun NavigationMapViewport(
     var loadedStyleKey by remember { mutableStateOf<String?>(null) }
     var isMapReady by remember { mutableStateOf(false) }
 
-    val resolvedStyle = remember(styleJson) {
-        when {
-            styleJson.isNotBlank() && !styleJson.contains("tiles.openfreemap.org/styles/liberty/style.json") -> styleJson
-            else -> MapStyleManager.ONLINE_STYLE_DARK
+    val resolvedStyle = remember(styleJson, isDarkTheme) {
+        if (styleJson.trim().startsWith("{")) {
+            styleJson
+        } else if (isDarkTheme) {
+            MapStyleManager.ONLINE_STYLE_DARK
+        } else {
+            MapStyleManager.ONLINE_STYLE_LIBERTY
         }
     }
 
