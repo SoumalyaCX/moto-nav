@@ -69,7 +69,7 @@ fun SettingsScreen(
     val avoidTolls by preferencesStore.avoidTollsFlow.collectAsState(initial = false)
     val batteryRideMode by preferencesStore.isBatteryRideModeEnabledFlow.collectAsState(initial = true)
     val bluetoothDucking by preferencesStore.isBluetoothDuckingEnabledFlow.collectAsState(initial = true)
-    val googleApiKey by preferencesStore.googlePlacesApiKeyFlow.collectAsState(initial = "")
+    val mapplsApiKey by preferencesStore.mapplsApiKeyFlow.collectAsState(initial = "")
 
     val isWaPermissionGranted = WANotificationService.isNotificationAccessGranted(context)
 
@@ -262,22 +262,29 @@ fun SettingsScreen(
                             color = Color.LightGray,
                             fontSize = 12.sp
                         )
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = "Google Places API Key (Optional)",
+                            text = "MapMyIndia (Mappls) REST API Key (Optional)",
                             color = Color.White,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Package: com.motonav",
+                            color = Color(0xFF38BDF8),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                         Spacer(modifier = Modifier.height(4.dp))
-                        var tempKey by remember(googleApiKey) { mutableStateOf(googleApiKey) }
+                        var tempKey by remember(mapplsApiKey) { mutableStateOf(mapplsApiKey) }
                         OutlinedTextField(
                             value = tempKey,
                             onValueChange = {
                                 tempKey = it
-                                scope.launch { preferencesStore.setGooglePlacesApiKey(it) }
+                                scope.launch { preferencesStore.setMapplsApiKey(it) }
                             },
-                            placeholder = { Text("Paste AIzaSy... to enable Google Places", color = Color.Gray, fontSize = 12.sp) },
+                            placeholder = { Text("Paste MapMyIndia REST Key...", color = Color.Gray, fontSize = 12.sp) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                             textStyle = TextStyle(color = Color.White, fontSize = 13.sp),

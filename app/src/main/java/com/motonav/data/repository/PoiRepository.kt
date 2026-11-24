@@ -112,12 +112,12 @@ class PoiRepository @Inject constructor(
 
         val results = mutableListOf<PoiEntity>()
 
-        // 1. Check if user configured a Google Places API key in Settings
-        val googleApiKey = preferencesStore.googlePlacesApiKeyFlow.first()
-        if (googleApiKey.isNotBlank()) {
-            val googleResults = searchGooglePlaces(trimmed, userLocation, googleApiKey, limit)
-            if (googleResults.isNotEmpty()) {
-                results.addAll(googleResults)
+        // 1. Check if user configured a MapMyIndia (Mappls) API key in Settings
+        val mapplsApiKey = preferencesStore.mapplsApiKeyFlow.first()
+        if (mapplsApiKey.isNotBlank()) {
+            val mapplsResults = searchMappls(trimmed, userLocation, mapplsApiKey, limit)
+            if (mapplsResults.isNotEmpty()) {
+                results.addAll(mapplsResults)
             }
         }
 
@@ -394,7 +394,7 @@ class PoiRepository @Inject constructor(
     /**
      * Optional Google Places API Text Search when API Key is provided by user in Settings.
      */
-    private fun searchGooglePlaces(
+    private fun searchMappls(
         query: String,
         userLocation: LatLng?,
         apiKey: String,
@@ -403,37 +403,36 @@ class PoiRepository @Inject constructor(
         val list = mutableListOf<PoiEntity>()
         try {
             val encodedQuery = URLEncoder.encode(query, "UTF-8")
-            val urlBuilder = StringBuilder(
-                "https://maps.googleapis.com/maps/api/place/textsearch/json?query=$encodedQuery&key=$apiKey"
-            )
-            if (userLocation != null) {
-                urlBuilder.append("&location=${userLocation.latitude},${userLocation.longitude}&radius=35000")
+            val urlStr = if (userLocation != null) {
+                "https://atlas.mappls.com/api/places/search/json?query=$encodedQuery&location=${userLocation.latitude},${userLocation.longitude}"
+            } else {
+                "https://atlas.mappls.com/api/places/search/json?query=$encodedQuery"
             }
 
-            val conn = URL(urlBuilder.toString()).openConnection() as HttpURLConnection
+            val conn = URL(urlStr).openConnection() as HttpURLConnection
             conn.connectTimeout = 4000
             conn.readTimeout = 4000
+            conn.setRequestProperty("Authorization", "Bearer $apiKey")
+            conn.setRequestProperty("User-Agent", "MotoNav/1.0 (Android Motorcycle Navigation)")
 
             if (conn.responseCode == 200) {
                 val body = conn.inputStream.bufferedReader().use { it.readText() }
                 val json = JSONObject(body)
-                val results = json.optJSONArray("results") ?: return emptyList()
+                val results = json.optJSONArray("suggestedLocations") ?: return emptyList()
 
                 for (i in 0 until minOf(results.length(), limit)) {
                     val place = results.getJSONObject(i)
-                    val name = place.optString("name")
-                    val geom = place.optJSONObject("geometry") ?: continue
-                    val loc = geom.optJSONObject("location") ?: continue
-                    val lat = loc.getDouble("lat")
-                    val lng = loc.getDouble("lng")
-                    val address = place.optString("formatted_address")
-                    val rating = place.optDouble("rating", 0.0)
+                    val name = place.optString("placeName", "Location")
+                    val address = place.optString("placeAddress", "")
+                    val lat = place.optDouble("latitude", 0.0)
+                    val lng = place.optDouble("longitude", 0.0)
+                    if (lat == 0.0 && lng == 0.0) continue
 
-                    val types = place.optJSONArray("types")?.toString() ?: ""
+                    val type = place.optString("type", "").lowercase()
                     val category = when {
-                        types.contains("gas_station") -> PoiCategory.PETROL.name
-                        types.contains("restaurant") || types.contains("food") || types.contains("cafe") -> PoiCategory.DHABA.name
-                        types.contains("car_repair") || types.contains("motorcycle") -> PoiCategory.MECHANIC.name
+                        type.contains("fuel") || type.contains("petrol") -> PoiCategory.PETROL.name
+                        type.contains("restaurant") || type.contains("food") || type.contains("dhaba") -> PoiCategory.DHABA.name
+                        type.contains("repair") || type.contains("workshop") || type.contains("mechanic") -> PoiCategory.MECHANIC.name
                         else -> PoiCategory.CITY.name
                     }
 
@@ -444,15 +443,15 @@ class PoiRepository @Inject constructor(
                             category = category,
                             latitude = lat,
                             longitude = lng,
-                            brand = if (rating > 0.0) "⭐ $rating" else null,
+                            brand = "Mappls India",
                             address = address,
-                            regionId = "google_places"
+                            regionId = "mappls"
                         )
                     )
                 }
             }
         } catch (e: Exception) {
-            Log.d(TAG, "Google Places query failed: ${e.message}")
+            Log.d(TAG, "Mappls query failed: ${e.message}")
         }
         return list
     }
