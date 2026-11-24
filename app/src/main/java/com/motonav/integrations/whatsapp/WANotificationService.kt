@@ -87,21 +87,35 @@ class WANotificationService : NotificationListenerService() {
     private fun handleSpotifyNotification(notification: Notification, extras: android.os.Bundle) {
         try {
             val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
-            val artist = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
+                ?: extras.getCharSequence("android.title")?.toString()
+                ?: extras.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)?.toString()
+
+            val rawArtist = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
                 ?: extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString()
+                ?: extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()
+                ?: extras.getCharSequence(Notification.EXTRA_INFO_TEXT)?.toString()
+                ?: extras.getCharSequence(Notification.EXTRA_SUMMARY_TEXT)?.toString()
+                ?: extras.getCharSequence("android.text")?.toString()
+                ?: extras.getCharSequence("android.subText")?.toString()
+
+            val artist = if (rawArtist.isNullOrBlank()) {
+                val ticker = notification.tickerText?.toString()
+                if (ticker != null && ticker.contains(" - ")) {
+                    ticker.substringBefore(" - ").trim()
+                } else null
+            } else rawArtist
 
             val albumArt: Bitmap? = try {
                 val direct = extras.get(Notification.EXTRA_LARGE_ICON)
+                    ?: extras.get(Notification.EXTRA_LARGE_ICON_BIG)
+                    ?: extras.get(Notification.EXTRA_PICTURE)
                 when (direct) {
                     is Bitmap -> direct
-                    is android.graphics.drawable.Icon -> direct.loadDrawable(this)?.toBitmap()
+                    is android.graphics.drawable.Icon -> {
+                        try { direct.loadDrawable(this)?.toBitmap() } catch (_: Exception) { null }
+                    }
                     else -> {
-                        val pic = extras.get(Notification.EXTRA_PICTURE)
-                        when (pic) {
-                            is Bitmap -> pic
-                            is android.graphics.drawable.Icon -> pic.loadDrawable(this)?.toBitmap()
-                            else -> notification.getLargeIcon()?.loadDrawable(this)?.toBitmap()
-                        }
+                        try { notification.getLargeIcon()?.loadDrawable(this)?.toBitmap() } catch (_: Exception) { null }
                     }
                 }
             } catch (e: Exception) {
@@ -122,6 +136,7 @@ class WANotificationService : NotificationListenerService() {
 
             val trackId = extras.getString("com.spotify.music.track_id")
                 ?: extras.getString("track_id")
+                ?: extras.getString("id")
 
             var playPauseIntent: PendingIntent? = null
             var nextIntent: PendingIntent? = null

@@ -30,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -47,19 +48,34 @@ fun MiniSpotifyPlayer(
     onOpenSpotify: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val displayTitle = playerState.trackTitle.takeIf { it.isNotBlank() } ?: "No music playing"
+    val displayArtist = when {
+        playerState.artistName.isNotBlank() -> playerState.artistName
+        playerState.isPlaying -> "Spotify Music"
+        else -> "Open Spotify"
+    }
+
+    // Glassmorphic cockpit media controller
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(68.dp)
-            .background(
-                color = Color(0xF50F172A),
-                shape = RoundedCornerShape(16.dp)
-            )
+            .height(70.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color(0xD90A0F1D)) // Frosted translucent obsidian
             .border(
-                BorderStroke(1.dp, Color(0x3338BDF8)),
-                shape = RoundedCornerShape(16.dp)
+                BorderStroke(
+                    1.dp,
+                    Brush.linearGradient(
+                        listOf(
+                            Color(0x4DFFFFFF),
+                            Color(0x1F38BDF8),
+                            Color(0x0AFFFFFF)
+                        )
+                    )
+                ),
+                shape = RoundedCornerShape(20.dp)
             )
-            .padding(horizontal = 8.dp),
+            .padding(horizontal = 10.dp),
         contentAlignment = Alignment.CenterStart
     ) {
         Row(
@@ -70,8 +86,9 @@ fun MiniSpotifyPlayer(
             // Album Art Thumbnail (Clickable to open Spotify)
             Box(
                 modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .size(50.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(BorderStroke(1.dp, Color(0x331DB954)), RoundedCornerShape(12.dp))
                     .clickable { onOpenSpotify() },
                 contentAlignment = Alignment.Center
             ) {
@@ -79,14 +96,18 @@ fun MiniSpotifyPlayer(
                     Image(
                         bitmap = playerState.albumArt.asImageBitmap(),
                         contentDescription = "Album Cover",
-                        modifier = Modifier.size(48.dp),
+                        modifier = Modifier.size(50.dp),
                         contentScale = ContentScale.Crop
                     )
                 } else {
                     Box(
                         modifier = Modifier
-                            .size(48.dp)
-                            .background(Color(0xFF1E293B)),
+                            .size(50.dp)
+                            .background(
+                                Brush.radialGradient(
+                                    listOf(Color(0xFF1E293B), Color(0xFF0F172A))
+                                )
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -103,11 +124,11 @@ fun MiniSpotifyPlayer(
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(horizontal = 10.dp)
+                    .padding(horizontal = 12.dp)
                     .clickable { onOpenSpotify() }
             ) {
                 Text(
-                    text = playerState.trackTitle,
+                    text = displayTitle,
                     color = Color.White,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
@@ -116,7 +137,7 @@ fun MiniSpotifyPlayer(
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = playerState.artistName,
+                    text = displayArtist,
                     color = Color(0xFF1DB954), // Spotify green accent
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -132,7 +153,7 @@ fun MiniSpotifyPlayer(
             ) {
                 IconButton(
                     onClick = onSkipPrevious,
-                    modifier = Modifier.size(48.dp)
+                    modifier = Modifier.size(46.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.SkipPrevious,
@@ -142,12 +163,17 @@ fun MiniSpotifyPlayer(
                     )
                 }
 
-                // Play / Pause prominent circular button
+                // Play / Pause prominent circular button with specular gradient
                 Box(
                     modifier = Modifier
                         .size(48.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF1DB954))
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color(0xFF1ED760), Color(0xFF1DB954))
+                            )
+                        )
+                        .border(BorderStroke(1.dp, Color(0x66FFFFFF)), CircleShape)
                         .clickable { onTogglePlayPause() },
                     contentAlignment = Alignment.Center
                 ) {
@@ -161,7 +187,7 @@ fun MiniSpotifyPlayer(
 
                 IconButton(
                     onClick = onSkipNext,
-                    modifier = Modifier.size(48.dp)
+                    modifier = Modifier.size(46.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.SkipNext,

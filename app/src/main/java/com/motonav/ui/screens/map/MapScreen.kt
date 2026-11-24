@@ -12,7 +12,9 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -60,6 +62,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -92,6 +95,15 @@ import org.maplibre.android.geometry.LatLng as MapLibreLatLng
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.Style
+
+private val GlassSpecularBorder = Brush.linearGradient(
+    listOf(
+        Color(0x55FFFFFF),
+        Color(0x1F38BDF8),
+        Color(0x0AFFFFFF)
+    )
+)
+private val GlassBackground = Color(0xD90A0F1D)
 
 @Composable
 fun MapScreen(
@@ -184,9 +196,10 @@ fun MapScreen(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 6.dp),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xF50F172A))
+                                .padding(top = 6.dp)
+                                .border(BorderStroke(1.dp, GlassSpecularBorder), RoundedCornerShape(18.dp)),
+                            shape = RoundedCornerShape(18.dp),
+                            colors = CardDefaults.cardColors(containerColor = GlassBackground)
                         ) {
                             LazyColumn(
                                 modifier = Modifier
@@ -266,11 +279,13 @@ fun MapScreen(
         ) {
             uiState.calculatedRoute?.let { route ->
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFA1E293B))
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(BorderStroke(1.dp, GlassSpecularBorder), RoundedCornerShape(20.dp)),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = GlassBackground)
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
+                    Column(modifier = Modifier.padding(14.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -317,8 +332,12 @@ fun MapScreen(
                                     Box(
                                         modifier = Modifier
                                             .weight(1f)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(if (isSelected) Color(0xFF0284C7) else Color(0xFF334155))
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(if (isSelected) Color(0xFF0284C7) else Color(0x661E293B))
+                                            .border(
+                                                BorderStroke(1.dp, if (isSelected) Color(0xFF38BDF8) else Color(0x33FFFFFF)),
+                                                RoundedCornerShape(10.dp)
+                                            )
                                             .clickable { viewModel.selectRouteFlavor(index) }
                                             .padding(vertical = 6.dp),
                                         contentAlignment = Alignment.Center
@@ -334,14 +353,15 @@ fun MapScreen(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
                         Button(
                             onClick = { viewModel.startNavigation(onNavigateToActiveRide) },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(46.dp),
+                                .height(48.dp)
+                                .border(BorderStroke(1.dp, Color(0x66FFFFFF)), RoundedCornerShape(14.dp)),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(14.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Navigation,
@@ -420,8 +440,12 @@ fun MapScreen(
                 if (!isDrawerOpen) {
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
-                            .background(Color(0xF00F172A))
+                            .clip(RoundedCornerShape(topStart = 18.dp, bottomStart = 18.dp))
+                            .background(GlassBackground)
+                            .border(
+                                BorderStroke(1.dp, Color(0x3338BDF8)),
+                                RoundedCornerShape(topStart = 18.dp, bottomStart = 18.dp)
+                            )
                             .clickable { isDrawerOpen = true }
                             .padding(horizontal = 8.dp, vertical = 14.dp),
                         contentAlignment = Alignment.Center
@@ -452,9 +476,14 @@ fun MapScreen(
                 ) {
                     Column(
                         modifier = Modifier
-                            .width(76.dp)
+                            .width(82.dp)
                             .fillMaxHeight()
-                            .background(Color(0xF20F172A))
+                            .clip(RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp))
+                            .background(GlassBackground)
+                            .border(
+                                BorderStroke(1.dp, Color(0x3338BDF8)),
+                                RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp)
+                            )
                             .verticalScroll(rememberScrollState())
                             .padding(vertical = 10.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -463,9 +492,10 @@ fun MapScreen(
                         // Close Drawer Button
                         Box(
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(42.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF1E293B))
+                                .background(Color(0xCC0F172A))
+                                .border(BorderStroke(1.dp, Color(0x33FFFFFF)), CircleShape)
                                 .clickable { isDrawerOpen = false },
                             contentAlignment = Alignment.Center
                         ) {
@@ -507,7 +537,8 @@ fun MapScreen(
                             modifier = Modifier
                                 .size(44.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xEE1E293B))
+                                .background(Color(0xCC0F172A))
+                                .border(BorderStroke(1.dp, Color(0x33FFFFFF)), CircleShape)
                                 .clickable { gpxLauncher.launch("*/*") },
                             contentAlignment = Alignment.Center
                         ) {
@@ -524,7 +555,8 @@ fun MapScreen(
                             modifier = Modifier
                                 .size(44.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xEE1E293B))
+                                .background(Color(0xCC0F172A))
+                                .border(BorderStroke(1.dp, Color(0x33FFFFFF)), CircleShape)
                                 .clickable { recenterTrigger++ },
                             contentAlignment = Alignment.Center
                         ) {
@@ -540,7 +572,8 @@ fun MapScreen(
                             modifier = Modifier
                                 .size(44.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xEE1E293B))
+                                .background(Color(0xCC0F172A))
+                                .border(BorderStroke(1.dp, Color(0x33FFFFFF)), CircleShape)
                                 .clickable { onOpenSettings() },
                             contentAlignment = Alignment.Center
                         ) {
@@ -592,7 +625,8 @@ fun MapScreen(
                     modifier = Modifier
                         .size(44.dp)
                         .clip(CircleShape)
-                        .background(Color(0xEE1E293B))
+                        .background(Color(0xCC0F172A))
+                        .border(BorderStroke(1.dp, Color(0x33FFFFFF)), CircleShape)
                         .clickable { gpxLauncher.launch("*/*") },
                     contentAlignment = Alignment.Center
                 ) {
@@ -608,7 +642,8 @@ fun MapScreen(
                     modifier = Modifier
                         .size(44.dp)
                         .clip(CircleShape)
-                        .background(Color(0xEE1E293B))
+                        .background(Color(0xCC0F172A))
+                        .border(BorderStroke(1.dp, Color(0x33FFFFFF)), CircleShape)
                         .clickable { recenterTrigger++ },
                     contentAlignment = Alignment.Center
                 ) {
@@ -618,6 +653,25 @@ fun MapScreen(
                         tint = Color(0xFF38BDF8)
                     )
                 }
+
+                // Settings Button (Portrait)
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xCC0F172A))
+                        .border(BorderStroke(1.dp, Color(0x33FFFFFF)), CircleShape)
+                        .clickable { onOpenSettings() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Settings",
+                        tint = Color.White
+                    )
+                }
+            }
+        }
 
                 Box(
                     modifier = Modifier
@@ -777,12 +831,32 @@ private fun loadStyleWithFallback(
     }
 
     mapView.addOnDidFailLoadingMapListener { error ->
-        android.util.Log.e("MapViewportCanvas", "Failed to load style $styleTarget: $error, falling back to OSM raster")
+        android.util.Log.e("MapViewportCanvas", "Failed to load style $styleTarget: $error")
+        val isMapboxIssue = styleTarget.contains("mapbox.com") ||
+                error.contains("402") || error.contains("429") ||
+                error.contains("Payment") || error.contains("Forbidden") || error.contains("Unauthorized")
+
+        if (isMapboxIssue) {
+            com.motonav.data.ApiConfig.markMapboxQuotaExceeded("Tile/style load error: $error")
+        }
+
+        val fallbackUri = if (styleTarget != MapStyleManager.ONLINE_STYLE_DARK) {
+            MapStyleManager.ONLINE_STYLE_DARK
+        } else {
+            MapStyleManager.OSM_RASTER_FALLBACK
+        }
+
         try {
-            map.setStyle(Style.Builder().fromJson(MapStyleManager.OSM_RASTER_FALLBACK)) {
-                onLoaded()
+            if (fallbackUri.trim().startsWith("{")) {
+                map.setStyle(Style.Builder().fromJson(fallbackUri)) { onLoaded() }
+            } else {
+                map.setStyle(Style.Builder().fromUri(fallbackUri)) { onLoaded() }
             }
-        } catch (ignored: Exception) {}
+        } catch (ignored: Exception) {
+            try {
+                map.setStyle(Style.Builder().fromJson(MapStyleManager.OSM_RASTER_FALLBACK)) { onLoaded() }
+            } catch (ignored2: Exception) {}
+        }
     }
 
     try {
@@ -790,11 +864,21 @@ private fun loadStyleWithFallback(
             onLoaded()
         }
     } catch (e: Exception) {
+        val isMapboxIssue = styleTarget.contains("mapbox.com")
+        if (isMapboxIssue) {
+            com.motonav.data.ApiConfig.markMapboxQuotaExceeded("Exception loading style: ${e.message}")
+        }
         try {
-            map.setStyle(Style.Builder().fromJson(MapStyleManager.OSM_RASTER_FALLBACK)) {
+            map.setStyle(Style.Builder().fromUri(MapStyleManager.ONLINE_STYLE_DARK)) {
                 onLoaded()
             }
-        } catch (ignored: Exception) {}
+        } catch (ignored: Exception) {
+            try {
+                map.setStyle(Style.Builder().fromJson(MapStyleManager.OSM_RASTER_FALLBACK)) {
+                    onLoaded()
+                }
+            } catch (ignored2: Exception) {}
+        }
     }
 }
 

@@ -89,19 +89,20 @@ class MapStyleManager @Inject constructor(
     }
 
     private fun buildLocalPmtilesStyle(pmtilesFile: File, isDark: Boolean): String {
-        val bgColor = if (isDark) "#121212" else "#f8f9fa"
-        val waterColor = if (isDark) "#1e293b" else "#93c5fd"
-        val primaryRoadColor = if (isDark) "#3b82f6" else "#2563eb"
-        val secondaryRoadColor = if (isDark) "#f59e0b" else "#d97706"
-        val textColor = if (isDark) "#f8fafc" else "#0f172a"
-        val textHalo = if (isDark) "#000000" else "#ffffff"
+        // Ultra-modern, minimal motorcycle cockpit map palette
+        val bgColor = if (isDark) "#080C14" else "#F8FAFC"
+        val waterColor = if (isDark) "#0B1628" else "#BAE6FD"
+        val primaryRoadColor = if (isDark) "#0284C7" else "#0369A1"
+        val secondaryRoadColor = if (isDark) "#1E293B" else "#CBD5E1"
+        val textColor = if (isDark) "#F1F5F9" else "#0F172A"
+        val textHalo = if (isDark) "#080C14" else "#FFFFFF"
 
         val pmtilesUri = "pmtiles://file://${pmtilesFile.absolutePath}"
 
         return """
         {
           "version": 8,
-          "name": "MotoNav Dynamic ${if (isDark) "Dark" else "Light"}",
+          "name": "MotoNav Minimalist ${if (isDark) "Obsidian Dark" else "Clean Light"}",
           "sources": {
             "openmaptiles": {
               "type": "vector",
@@ -134,7 +135,7 @@ class MapStyleManager @Inject constructor(
               "filter": ["in", "class", "secondary", "tertiary"],
               "paint": {
                 "line-color": "$secondaryRoadColor",
-                "line-width": ["interpolate", ["linear"], ["zoom"], 8, 2, 16, 8]
+                "line-width": ["interpolate", ["linear"], ["zoom"], 8, 1.5, 16, 6]
               }
             },
             {
@@ -145,7 +146,7 @@ class MapStyleManager @Inject constructor(
               "filter": ["==", "class", "primary"],
               "paint": {
                 "line-color": "$primaryRoadColor",
-                "line-width": ["interpolate", ["linear"], ["zoom"], 7, 2, 16, 10]
+                "line-width": ["interpolate", ["linear"], ["zoom"], 7, 2.5, 16, 9]
               }
             },
             {
@@ -156,12 +157,12 @@ class MapStyleManager @Inject constructor(
               "layout": {
                 "symbol-placement": "line",
                 "text-field": "{name}",
-                "text-size": ["interpolate", ["linear"], ["zoom"], 10, 11, 16, 15]
+                "text-size": ["interpolate", ["linear"], ["zoom"], 10, 11, 16, 14]
               },
               "paint": {
                 "text-color": "$textColor",
                 "text-halo-color": "$textHalo",
-                "text-halo-width": 2
+                "text-halo-width": 2.5
               }
             },
             {
@@ -171,10 +172,10 @@ class MapStyleManager @Inject constructor(
               "source-layer": "poi",
               "filter": ["==", "subclass", "fuel"],
               "paint": {
-                "circle-radius": 7,
-                "circle-color": "#10b981",
+                "circle-radius": 6,
+                "circle-color": "#10B981",
                 "circle-stroke-width": 2,
-                "circle-stroke-color": "#ffffff"
+                "circle-stroke-color": "#FFFFFF"
               }
             }
           ]

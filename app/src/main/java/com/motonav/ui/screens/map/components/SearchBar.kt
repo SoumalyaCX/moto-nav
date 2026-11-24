@@ -1,9 +1,8 @@
 package com.motonav.ui.screens.map.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -30,12 +29,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
+private val GlassBorder = Brush.linearGradient(
+    listOf(
+        Color(0x55FFFFFF),
+        Color(0x1F38BDF8),
+        Color(0x0AFFFFFF)
+    )
+)
+
+private val GlassBackground = Color(0xD90A0F1D)
 
 @Composable
 fun MapSearchBar(
@@ -54,7 +64,8 @@ fun MapSearchBar(
             modifier = modifier
                 .size(48.dp)
                 .clip(CircleShape)
-                .background(Color(0xEE0F172A))
+                .background(GlassBackground)
+                .border(BorderStroke(1.dp, GlassBorder), CircleShape)
                 .clickable { onToggleExpand() },
             contentAlignment = Alignment.Center
         ) {
@@ -70,11 +81,10 @@ fun MapSearchBar(
         Box(
             modifier = modifier
                 .fillMaxWidth()
-                .height(50.dp)
-                .background(
-                    color = Color(0xF20F172A),
-                    shape = RoundedCornerShape(25.dp)
-                )
+                .height(52.dp)
+                .clip(RoundedCornerShape(26.dp))
+                .background(GlassBackground)
+                .border(BorderStroke(1.dp, GlassBorder), RoundedCornerShape(26.dp))
                 .padding(horizontal = 6.dp),
             contentAlignment = Alignment.CenterStart
         ) {

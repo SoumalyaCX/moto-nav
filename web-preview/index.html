@@ -100,7 +100,14 @@
 
     .interactive { pointer-events: auto; }
 
-    /* Compact Search Button & Bar */
+    /* Glassmorphism Design System */
+    .glass-panel {
+      background: rgba(10, 15, 29, 0.85) !important;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.16) !important;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+    }
     .top-bar {
       display: flex;
       flex-direction: column;
@@ -392,6 +399,7 @@
     <div class="sim-pill" onclick="toggleRideSimulation()">🏍️ Start / Stop Motorcycle Ride</div>
     <div class="sim-pill" onclick="simulateGpxImport()">📂 Import GPX Trail</div>
     <div class="sim-pill" onclick="toggleTheme()">🌓 Dark / Light Mode</div>
+    <div class="sim-pill" id="mapboxSimBtn" onclick="simulateMapboxQuotaFallback()" style="border-color:#10b981; color:#10b981;">⚡ Engine: Mapbox (Click to trigger 402/429)</div>
   </div>
 
   <div class="phone-container" id="phoneMockup">
@@ -682,6 +690,23 @@
     function toggleTheme() {
       isDark = !isDark;
       map.setStyle(isDark ? 'https://tiles.openfreemap.org/styles/liberty' : 'https://tiles.openfreemap.org/styles/bright');
+    }
+    let isMapboxQuotaTriggered = false;
+    function simulateMapboxQuotaFallback() {
+      isMapboxQuotaTriggered = !isMapboxQuotaTriggered;
+      const btn = document.getElementById('mapboxSimBtn');
+      if (isMapboxQuotaTriggered) {
+        btn.innerText = '⚠️ Mapbox 402 Limit Hit -> Auto-Switched to OpenFreeMap';
+        btn.style.borderColor = '#f59e0b';
+        btn.style.color = '#f59e0b';
+        map.setStyle('https://tiles.openfreemap.org/styles/dark');
+        alert('⚡ Simulated Mapbox 402/429 Quota Exceeded! MotoNav immediately and seamlessly transitioned the live viewport to 100% Free OpenFreeMap vector tiles & Photon.');
+      } else {
+        btn.innerText = '⚡ Engine: Mapbox (Click to trigger 402/429)';
+        btn.style.borderColor = '#10b981';
+        btn.style.color = '#10b981';
+        map.setStyle('https://tiles.openfreemap.org/styles/liberty');
+      }
     }
   </script>
 </body>

@@ -411,7 +411,8 @@ class PoiRepository @Inject constructor(
             conn.readTimeout = 4000
             conn.setRequestProperty("User-Agent", "MotoNav/1.0 (Android Motorcycle Navigation)")
 
-            if (conn.responseCode == 200) {
+            val responseCode = conn.responseCode
+            if (responseCode == 200) {
                 val body = conn.inputStream.bufferedReader().use { it.readText() }
                 val json = JSONObject(body)
                 val features = json.optJSONArray("features") ?: return emptyList()
@@ -448,6 +449,11 @@ class PoiRepository @Inject constructor(
                         )
                     )
                 }
+            } else if (responseCode == 402 || responseCode == 429 || responseCode == 401 || responseCode == 403) {
+                Log.w(TAG, "Mapbox Geocoding HTTP $responseCode. Quota or rate limit exceeded. Auto-switching.")
+                ApiConfig.markMapboxQuotaExceeded("HTTP $responseCode in Places Geocoding")
+            } else {
+                Log.d(TAG, "Mapbox geocoding returned HTTP $responseCode")
             }
         } catch (e: Exception) {
             Log.d(TAG, "Mapbox geocoding query failed: ${e.message}")

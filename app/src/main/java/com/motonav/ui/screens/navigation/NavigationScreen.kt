@@ -6,7 +6,9 @@ import android.graphics.Color as AndroidColor
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -190,8 +192,12 @@ fun NavigationScreen(
                         if (!isDrawerOpen) {
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
-                                    .background(Color(0xF0020617))
+                                    .clip(RoundedCornerShape(topStart = 18.dp, bottomStart = 18.dp))
+                                    .background(Color(0xD90A0F1D))
+                                    .border(
+                                        BorderStroke(1.dp, Color(0x3338BDF8)),
+                                        RoundedCornerShape(topStart = 18.dp, bottomStart = 18.dp)
+                                    )
                                     .clickable { isDrawerOpen = true }
                                     .padding(horizontal = 8.dp, vertical = 14.dp),
                                 contentAlignment = Alignment.Center
@@ -222,9 +228,14 @@ fun NavigationScreen(
                         ) {
                             Column(
                                 modifier = Modifier
-                                    .width(76.dp)
+                                    .width(82.dp)
                                     .fillMaxHeight()
-                                    .background(Color(0xF5020617))
+                                    .clip(RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp))
+                                    .background(Color(0xD90A0F1D))
+                                    .border(
+                                        BorderStroke(1.dp, Color(0x3338BDF8)),
+                                        RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp)
+                                    )
                                     .verticalScroll(rememberScrollState())
                                     .padding(vertical = 10.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -233,14 +244,20 @@ fun NavigationScreen(
                                 // Close Drawer
                                 Box(
                                     modifier = Modifier
-                                        .size(40.dp)
+                                        .size(42.dp)
                                         .clip(CircleShape)
-                                        .background(Color(0xFF1E293B))
+                                        .background(Color(0xCC0F172A))
+                                        .border(BorderStroke(1.dp, Color(0x33FFFFFF)), CircleShape)
                                         .clickable { isDrawerOpen = false },
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.ChevronRight,
+                                        contentDescription = "Close HUD",
+                                        tint = Color.LightGray,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
                                         contentDescription = "Close HUD",
                                         tint = Color.LightGray,
                                         modifier = Modifier.size(24.dp)
@@ -444,7 +461,7 @@ fun NavigationMapViewport(
     var isMapReady by remember { mutableStateOf(false) }
 
     val resolvedStyle = remember(styleJson, isDarkTheme) {
-        if (styleJson.trim().startsWith("{")) {
+        if (styleJson.isNotBlank()) {
             styleJson
         } else if (isDarkTheme) {
             MapStyleManager.ONLINE_STYLE_DARK
@@ -503,12 +520,32 @@ private fun loadNavMapStyle(
     }
 
     mapView.addOnDidFailLoadingMapListener { error ->
-        android.util.Log.e("NavMapViewport", "Failed to load style $styleTarget: $error, falling back to OSM raster")
+        android.util.Log.e("NavMapViewport", "Failed to load style $styleTarget: $error")
+        val isMapboxIssue = styleTarget.contains("mapbox.com") ||
+                error.contains("402") || error.contains("429") ||
+                error.contains("Payment") || error.contains("Forbidden") || error.contains("Unauthorized")
+
+        if (isMapboxIssue) {
+            com.motonav.data.ApiConfig.markMapboxQuotaExceeded("Nav tile load error: $error")
+        }
+
+        val fallbackUri = if (styleTarget != MapStyleManager.ONLINE_STYLE_DARK) {
+            MapStyleManager.ONLINE_STYLE_DARK
+        } else {
+            MapStyleManager.OSM_RASTER_FALLBACK
+        }
+
         try {
-            map.setStyle(Style.Builder().fromJson(MapStyleManager.OSM_RASTER_FALLBACK)) {
-                onLoaded()
+            if (fallbackUri.trim().startsWith("{")) {
+                map.setStyle(Style.Builder().fromJson(fallbackUri)) { onLoaded() }
+            } else {
+                map.setStyle(Style.Builder().fromUri(fallbackUri)) { onLoaded() }
             }
-        } catch (ignored: Exception) {}
+        } catch (ignored: Exception) {
+            try {
+                map.setStyle(Style.Builder().fromJson(MapStyleManager.OSM_RASTER_FALLBACK)) { onLoaded() }
+            } catch (ignored2: Exception) {}
+        }
     }
 
     try {
@@ -516,11 +553,21 @@ private fun loadNavMapStyle(
             onLoaded()
         }
     } catch (e: Exception) {
+        val isMapboxIssue = styleTarget.contains("mapbox.com")
+        if (isMapboxIssue) {
+            com.motonav.data.ApiConfig.markMapboxQuotaExceeded("Exception loading nav style: ${e.message}")
+        }
         try {
-            map.setStyle(Style.Builder().fromJson(MapStyleManager.OSM_RASTER_FALLBACK)) {
+            map.setStyle(Style.Builder().fromUri(MapStyleManager.ONLINE_STYLE_DARK)) {
                 onLoaded()
             }
-        } catch (ignored: Exception) {}
+        } catch (ignored: Exception) {
+            try {
+                map.setStyle(Style.Builder().fromJson(MapStyleManager.OSM_RASTER_FALLBACK)) {
+                    onLoaded()
+                }
+            } catch (ignored2: Exception) {}
+        }
     }
 }
 

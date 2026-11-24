@@ -1,5 +1,6 @@
 package com.motonav.ui.screens.map.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -14,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.motonav.data.local.db.entities.PoiCategory
@@ -55,15 +57,19 @@ fun PoiQuickFilters(
                 label = {
                     Text(
                         text = "${item.iconEmoji} ${item.label}",
-                        fontSize = 14.sp,
-                        fontWeight = if (isSelected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Medium
+                        fontSize = 13.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                     )
                 },
                 shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(
+                    width = if (isSelected) 1.5.dp else 1.dp,
+                    color = if (isSelected) Color(0xFF38BDF8) else Color(0x33FFFFFF)
+                ),
                 colors = FilterChipDefaults.filterChipColors(
-                    containerColor = Color(0xCC1E293B),
-                    labelColor = Color.White,
-                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                    containerColor = Color(0xD90A0F1D),
+                    labelColor = Color(0xFFE2E8F0),
+                    selectedContainerColor = Color(0xFF0284C7),
                     selectedLabelColor = Color.White
                 )
             )

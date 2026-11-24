@@ -68,9 +68,11 @@ class SpotifyRemoteManager @Inject constructor(
                 "com.spotify.music.metadatachanged" -> {
                     val track = intent.getStringExtra("track")
                         ?: intent.getStringExtra("track_name")
+                        ?: intent.getStringExtra("title")
                         ?: intent.getCharSequenceExtra("track")?.toString()
                     val artist = intent.getStringExtra("artist")
                         ?: intent.getStringExtra("artist_name")
+                        ?: intent.getStringExtra("album_artist")
                         ?: intent.getCharSequenceExtra("artist")?.toString()
                     val isPlaying = intent.getBooleanExtra("playing", _playerState.value.isPlaying)
                     val length = intent.getIntExtra("length", 0) * 1000L
@@ -200,10 +202,14 @@ class SpotifyRemoteManager @Inject constructor(
     }
 
     /**
-     * Fetches public Spotify album artwork via oEmbed API when not available from notification extras.
+     * Fetches public Spotify album artwork and metadata via oEmbed API when not available from notification extras.
      */
     fun fetchAlbumArtAsync(trackUriOrId: String) {
-        val cleanId = trackUriOrId.substringAfterLast(":").trim()
+        val cleanId = trackUriOrId
+            .substringAfterLast("/")
+            .substringAfterLast(":")
+            .substringBefore("?")
+            .trim()
         if (cleanId.isBlank()) return
 
         val cached = albumArtCache[cleanId]
@@ -219,12 +225,30 @@ class SpotifyRemoteManager @Inject constructor(
                 conn.connectTimeout = 4000
                 conn.readTimeout = 4000
                 conn.requestMethod = "GET"
-                conn.setRequestProperty("User-Agent", "MotoNav/1.0")
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Android; Mobile; rv:109.0) Gecko/114.0 Firefox/114.0")
 
                 if (conn.responseCode == 200) {
                     val body = conn.inputStream.bufferedReader().use { it.readText() }
                     val json = JSONObject(body)
                     val thumbUrl = json.optString("thumbnail_url")
+                    val authorName = json.optString("author_name")
+                    val oembedTitle = json.optString("title")
+
+                    if (authorName.isNotBlank()) {
+                        _playerState.update { current ->
+                            if (current.artistName in listOf("Open Spotify", "Spotify Music", "Unknown Artist", "")) {
+                                current.copy(artistName = authorName)
+                            } else current
+                        }
+                    }
+                    if (oembedTitle.isNotBlank()) {
+                        _playerState.update { current ->
+                            if (current.trackTitle in listOf("No music playing", "")) {
+                                current.copy(trackTitle = oembedTitle)
+                            } else current
+                        }
+                    }
+
                     if (thumbUrl.isNotBlank()) {
                         val imgConn = URL(thumbUrl).openConnection() as HttpURLConnection
                         imgConn.connectTimeout = 4000
@@ -239,6 +263,47 @@ class SpotifyRemoteManager @Inject constructor(
                 }
             } catch (e: Exception) {
                 Log.d(TAG, "oEmbed album art fetch failed: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Loads artwork from local content:// or remote http(s):// URI asynchronously.
+     */
+    fun loadArtFromUriAsync(artUri: String) {
+        if (artUri.isBlank()) return
+        val cached = albumArtCache[artUri]
+        if (cached != null) {
+            _playerState.update { it.copy(albumArt = cached) }
+            return
+        }
+
+        coroutineScope.launch {
+            try {
+                val bitmap: Bitmap? = if (artUri.startsWith("content://") || artUri.startsWith("android.resource://")) {
+                    val uri = android.net.Uri.parse(artUri)
+                    context.contentResolver.openInputStream(uri)?.use { stream ->
+                        BitmapFactory.decodeStream(stream)
+                    }
+                } else if (artUri.startsWith("http://") || artUri.startsWith("https://")) {
+                    val conn = URL(artUri).openConnection() as HttpURLConnection
+                    conn.connectTimeout = 4000
+                    conn.readTimeout = 4000
+                    conn.setRequestProperty("User-Agent", "MotoNav/1.0")
+                    if (conn.responseCode == 200) {
+                        conn.inputStream.use { stream ->
+                            BitmapFactory.decodeStream(stream)
+                        }
+                    } else null
+                } else null
+
+                if (bitmap != null) {
+                    albumArtCache[artUri] = bitmap
+                    _playerState.update { it.copy(albumArt = bitmap) }
+                    Log.d(TAG, "Successfully loaded album art from URI: $artUri")
+                }
+            } catch (e: Exception) {
+                Log.d(TAG, "Failed loading art from URI ($artUri): ${e.message}")
             }
         }
     }
@@ -274,11 +339,26 @@ class SpotifyRemoteManager @Inject constructor(
 
             override fun onMetadataChanged(meta: android.media.MediaMetadata?) {
                 if (meta != null) {
-                    val title = meta.getString(android.media.MediaMetadata.METADATA_KEY_TITLE)
-                    val artist = meta.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST)
-                    val art = meta.getBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART)
+                    val title = meta.getText(android.media.MediaMetadata.METADATA_KEY_TITLE)?.toString()
+                        ?: meta.getText(android.media.MediaMetadata.METADATA_KEY_DISPLAY_TITLE)?.toString()
+
+                    val artist = meta.getText(android.media.MediaMetadata.METADATA_KEY_ARTIST)?.toString()
+                        ?: meta.getText(android.media.MediaMetadata.METADATA_KEY_ALBUM_ARTIST)?.toString()
+                        ?: meta.getText(android.media.MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE)?.toString()
+                        ?: meta.getText(android.media.MediaMetadata.METADATA_KEY_AUTHOR)?.toString()
+                        ?: meta.getText(android.media.MediaMetadata.METADATA_KEY_COMPOSER)?.toString()
+                        ?: meta.getText(android.media.MediaMetadata.METADATA_KEY_ALBUM)?.toString()
+
+                    var art = meta.getBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART)
                         ?: meta.getBitmap(android.media.MediaMetadata.METADATA_KEY_ART)
                         ?: meta.getBitmap(android.media.MediaMetadata.METADATA_KEY_DISPLAY_ICON)
+
+                    val artUri = meta.getString(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART_URI)
+                        ?: meta.getString(android.media.MediaMetadata.METADATA_KEY_ART_URI)
+                        ?: meta.getString(android.media.MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI)
+
+                    val mediaId = meta.getString(android.media.MediaMetadata.METADATA_KEY_MEDIA_ID)
+                        ?: meta.getString(android.media.MediaMetadata.METADATA_KEY_MEDIA_URI)
 
                     _playerState.update { current ->
                         current.copy(
@@ -286,6 +366,14 @@ class SpotifyRemoteManager @Inject constructor(
                             artistName = artist?.takeIf { it.isNotBlank() } ?: current.artistName,
                             albumArt = art ?: current.albumArt
                         )
+                    }
+
+                    if (art == null) {
+                        if (!artUri.isNullOrBlank()) {
+                            loadArtFromUriAsync(artUri)
+                        } else if (!mediaId.isNullOrBlank()) {
+                            fetchAlbumArtAsync(mediaId)
+                        }
                     }
                 }
             }
@@ -296,11 +384,27 @@ class SpotifyRemoteManager @Inject constructor(
         val metadata = controller.metadata
         val pbState = controller.playbackState
 
-        val title = metadata?.getString(android.media.MediaMetadata.METADATA_KEY_TITLE)
-        val artist = metadata?.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST)
-        val art = metadata?.getBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART)
+        val title = metadata?.getText(android.media.MediaMetadata.METADATA_KEY_TITLE)?.toString()
+            ?: metadata?.getText(android.media.MediaMetadata.METADATA_KEY_DISPLAY_TITLE)?.toString()
+
+        val artist = metadata?.getText(android.media.MediaMetadata.METADATA_KEY_ARTIST)?.toString()
+            ?: metadata?.getText(android.media.MediaMetadata.METADATA_KEY_ALBUM_ARTIST)?.toString()
+            ?: metadata?.getText(android.media.MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE)?.toString()
+            ?: metadata?.getText(android.media.MediaMetadata.METADATA_KEY_AUTHOR)?.toString()
+            ?: metadata?.getText(android.media.MediaMetadata.METADATA_KEY_COMPOSER)?.toString()
+            ?: metadata?.getText(android.media.MediaMetadata.METADATA_KEY_ALBUM)?.toString()
+
+        var art = metadata?.getBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART)
             ?: metadata?.getBitmap(android.media.MediaMetadata.METADATA_KEY_ART)
             ?: metadata?.getBitmap(android.media.MediaMetadata.METADATA_KEY_DISPLAY_ICON)
+
+        val artUri = metadata?.getString(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART_URI)
+            ?: metadata?.getString(android.media.MediaMetadata.METADATA_KEY_ART_URI)
+            ?: metadata?.getString(android.media.MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI)
+
+        val mediaId = metadata?.getString(android.media.MediaMetadata.METADATA_KEY_MEDIA_ID)
+            ?: metadata?.getString(android.media.MediaMetadata.METADATA_KEY_MEDIA_URI)
+
         val isPlaying = pbState?.state == PlaybackState.STATE_PLAYING
 
         _playerState.update { current ->
@@ -311,6 +415,14 @@ class SpotifyRemoteManager @Inject constructor(
                 isPlaying = isPlaying,
                 isConnected = true
             )
+        }
+
+        if (art == null) {
+            if (!artUri.isNullOrBlank()) {
+                loadArtFromUriAsync(artUri)
+            } else if (!mediaId.isNullOrBlank()) {
+                fetchAlbumArtAsync(mediaId)
+            }
         }
     }
 

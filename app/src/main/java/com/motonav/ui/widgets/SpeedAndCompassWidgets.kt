@@ -1,6 +1,8 @@
 package com.motonav.ui.widgets
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -28,6 +31,16 @@ enum class ScreenOrientationLock {
     PORTRAIT
 }
 
+private val GlassSpecularBorder = Brush.linearGradient(
+    listOf(
+        Color(0x55FFFFFF),
+        Color(0x1F38BDF8),
+        Color(0x0AFFFFFF)
+    )
+)
+
+private val GlassBackground = Color(0xD90A0F1D)
+
 @Composable
 fun OrientationLockButton(
     lockMode: ScreenOrientationLock,
@@ -38,7 +51,8 @@ fun OrientationLockButton(
         modifier = modifier
             .size(52.dp)
             .clip(CircleShape)
-            .background(Color(0xEE0F172A))
+            .background(GlassBackground)
+            .border(BorderStroke(1.dp, GlassSpecularBorder), CircleShape)
             .clickable { onClick() }
             .padding(4.dp),
         contentAlignment = Alignment.Center
@@ -100,7 +114,8 @@ fun CompassWidget(
         modifier = modifier
             .size(52.dp)
             .clip(CircleShape)
-            .background(Color(0xEE0F172A))
+            .background(GlassBackground)
+            .border(BorderStroke(1.dp, GlassSpecularBorder), CircleShape)
             .clickable { onClick() }
             .padding(4.dp),
         contentAlignment = Alignment.Center
@@ -148,10 +163,9 @@ fun SpeedIndicator(
     Box(
         modifier = modifier
             .size(width = 68.dp, height = 68.dp)
-            .background(
-                color = Color(0xEE0F172A),
-                shape = RoundedCornerShape(16.dp)
-            )
+            .clip(RoundedCornerShape(18.dp))
+            .background(GlassBackground)
+            .border(BorderStroke(1.dp, GlassSpecularBorder), RoundedCornerShape(18.dp))
             .padding(4.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -180,17 +194,16 @@ fun BatteryWidget(
 ) {
     Box(
         modifier = modifier
-            .background(
-                color = Color(0xCC0F172A),
-                shape = RoundedCornerShape(12.dp)
-            )
+            .clip(RoundedCornerShape(12.dp))
+            .background(GlassBackground)
+            .border(BorderStroke(1.dp, Color(0x33FFFFFF)), RoundedCornerShape(12.dp))
             .padding(horizontal = 8.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center
     ) {
         val icon = if (isCharging) "⚡" else "🔋"
         Text(
             text = "$icon $percentage%",
-            color = if (percentage <= 20) Color.Red else Color.Green,
+            color = if (percentage <= 20) Color(0xFFEF4444) else Color(0xFF10B981),
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold
         )
@@ -219,10 +232,9 @@ fun LeanAngleWidget(
     Box(
         modifier = modifier
             .size(width = 68.dp, height = 68.dp)
-            .background(
-                color = Color(0xEE0F172A),
-                shape = RoundedCornerShape(16.dp)
-            )
+            .clip(RoundedCornerShape(18.dp))
+            .background(GlassBackground)
+            .border(BorderStroke(1.dp, GlassSpecularBorder), RoundedCornerShape(18.dp))
             .clickable { onResetMax() }
             .padding(4.dp),
         contentAlignment = Alignment.Center

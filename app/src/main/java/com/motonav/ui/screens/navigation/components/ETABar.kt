@@ -1,16 +1,18 @@
 package com.motonav.ui.screens.navigation.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -20,6 +22,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -48,9 +52,20 @@ fun ETABar(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .background(
-                color = Color(0xFA0F172A),
-                shape = RoundedCornerShape(16.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color(0xD90A0F1D))
+            .border(
+                BorderStroke(
+                    1.dp,
+                    Brush.linearGradient(
+                        listOf(
+                            Color(0x55FFFFFF),
+                            Color(0x1F38BDF8),
+                            Color(0x0AFFFFFF)
+                        )
+                    )
+                ),
+                shape = RoundedCornerShape(20.dp)
             )
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
@@ -63,7 +78,7 @@ fun ETABar(
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
                         text = durationText,
-                        color = Color(0xFF10B981), // Bright green
+                        color = Color(0xFF10B981), // Bright emerald green
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Black
                     )
@@ -83,12 +98,14 @@ fun ETABar(
                 )
             }
 
-            // End ride button (red circle)
+            // End ride button (red specular circle)
             IconButton(
                 onClick = onEndRide,
                 modifier = Modifier
                     .size(46.dp)
-                    .background(Color(0xFFEF4444), RoundedCornerShape(23.dp))
+                    .clip(CircleShape)
+                    .background(Color(0xFFEF4444))
+                    .border(BorderStroke(1.dp, Color(0x66FFFFFF)), CircleShape)
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,
