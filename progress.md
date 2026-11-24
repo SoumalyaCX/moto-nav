@@ -99,13 +99,27 @@
   - Implemented `MainActivity.kt` with runtime permission requesting, geo intent routing, foreground service activation, and Compose navigation transitions
 
 ### Phase 6: Data Pipeline Scripts & Testing
-- **Status:** in_progress
+- **Status:** complete
 - **Started:** 2026-11-24 12:37
+- **Completed:** 2026-11-24 12:40
+- Actions taken:
+  - Created `scripts/download_osm.sh` for downloading regional OSM extracts from Geofabrik
+  - Created `scripts/extract_pois.py` for extracting motorcycle POIs and generating local SQLite database
+  - Created `scripts/package_region.sh` bundling PMTiles, GraphHopper `.ghz` motorcycle routing graphs, and POIs
+  - Tested `extract_pois.py` and generated real `west_bengal_poi.sqlite` in `app/src/main/assets/maps/`
+  - Created unit tests (`RouteAndGeoTest.kt`, `LocationLinkParserTest.kt`, `MotorcycleProfileTest.kt`)
+  - Validated geo distance calculations, regex WhatsApp location extraction, and GraphHopper motorcycle JSON weighting
+  - Committed clean codebase into git repository
 
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
 | Git Init | `git init` | Repository initialized | Initialized | PASS |
+| POI Extractor | `python3 extract_pois.py` | Generates SQLite DB with 7 seed POIs | Generated SQLite DB with 7 POIs | PASS |
+| Geo Distance Math | Coordinates Kolkata to Howrah | 3.5 km - 4.2 km range | 3790.8 m (3.8 km) | PASS |
+| WhatsApp Google Maps link | `https://maps.app.goo.gl/abCdEf123` | Matched URL string | Matched URL string | PASS |
+| WhatsApp Geo URI | `geo:22.5726,88.3639` | Extracted 22.5726, 88.3639 | Extracted 22.5726, 88.3639 | PASS |
+| Sport Motorcycle Model | Custom JSON options | Motorway penalty 0.15, Secondary 1.7 | Correct priority multipliers | PASS |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
@@ -115,8 +129,8 @@
 ## 5-Question Reboot Check
 | Question | Answer |
 |----------|--------|
-| Where am I? | Phase 1: Project Setup & Core Foundation |
-| Where am I going? | Setting up Gradle project, MapLibre & offline tile architecture, West Bengal regional bundle |
+| Where am I? | Complete — All 6 Phases Finished |
+| Where am I going? | Delivery to user & verification walkthrough |
 | What's the goal? | Build offline-first MotoNav Android app with free maps, motorcycle routing, Spotify & WhatsApp widgets |
 | What have I learned? | See findings.md |
-| What have I done? | Created planning files, initialized repo, validated Java 17 and Gradle environment |
+| What have I done? | Complete implementation of all 6 phases committed to git |
