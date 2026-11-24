@@ -91,14 +91,19 @@ class WANotificationService : NotificationListenerService() {
                 ?: extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString()
 
             val albumArt: Bitmap? = try {
-                val largeIcon = notification.getLargeIcon()
-                largeIcon?.loadDrawable(this)?.toBitmap()
-                    ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        extras.getParcelable(Notification.EXTRA_LARGE_ICON, Bitmap::class.java)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        extras.getParcelable(Notification.EXTRA_LARGE_ICON)
+                val direct = extras.get(Notification.EXTRA_LARGE_ICON)
+                when (direct) {
+                    is Bitmap -> direct
+                    is android.graphics.drawable.Icon -> direct.loadDrawable(this)?.toBitmap()
+                    else -> {
+                        val pic = extras.get(Notification.EXTRA_PICTURE)
+                        when (pic) {
+                            is Bitmap -> pic
+                            is android.graphics.drawable.Icon -> pic.loadDrawable(this)?.toBitmap()
+                            else -> notification.getLargeIcon()?.loadDrawable(this)?.toBitmap()
+                        }
                     }
+                }
             } catch (e: Exception) {
                 Log.w(TAG, "Failed extracting album art: ${e.message}")
                 null
@@ -114,6 +119,9 @@ class WANotificationService : NotificationListenerService() {
             } catch (e: Exception) {
                 null
             }
+
+            val trackId = extras.getString("com.spotify.music.track_id")
+                ?: extras.getString("track_id")
 
             var playPauseIntent: PendingIntent? = null
             var nextIntent: PendingIntent? = null
@@ -157,7 +165,8 @@ class WANotificationService : NotificationListenerService() {
                 playPauseAction = playPauseIntent,
                 nextAction = nextIntent,
                 prevAction = prevIntent,
-                isPlaying = isPlaying
+                isPlaying = isPlaying,
+                trackId = trackId
             )
         } catch (e: Exception) {
             Log.e(TAG, "Error processing Spotify notification: ${e.message}", e)

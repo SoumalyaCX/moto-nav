@@ -4,7 +4,11 @@ import android.content.res.Configuration
 import android.os.Bundle
 import android.graphics.Color as AndroidColor
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -28,8 +32,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Settings
@@ -88,7 +93,7 @@ fun MapScreen(
     viewModel: MapViewModel,
     onNavigateToActiveRide: () -> Unit,
     onOpenSettings: () -> Unit,
-    onOpenDownloads: () -> Unit,
+    onOpenDownloads: () -> Unit = {},
     orientationLock: ScreenOrientationLock = ScreenOrientationLock.AUTO,
     onToggleOrientationLock: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -97,8 +102,11 @@ fun MapScreen(
     val spotifyState by viewModel.spotifyState.collectAsState()
     val waMessages by viewModel.waMessages.collectAsState()
     val batteryStatus by viewModel.batteryStatus.collectAsState()
+
     var recenterTrigger by remember { mutableStateOf(0) }
     var isFrontFacing by remember { mutableStateOf(false) }
+    var isSearchExpanded by remember { mutableStateOf(false) }
+    var isDrawerOpen by remember { mutableStateOf(false) }
 
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -108,39 +116,63 @@ fun MapScreen(
             .fillMaxSize()
             .background(Color(0xFF0F172A))
     ) {
-        if (isLandscape) {
-            // ==============================================================
-            // LANDSCAPE MOTORCYCLE COCKPIT DUAL-PANE LAYOUT
-            // ==============================================================
-            Row(modifier = Modifier.fillMaxSize()) {
-                // Left Control Panel (320dp width, full height)
-                Column(
-                    modifier = Modifier
-                        .width(320.dp)
-                        .fillMaxHeight()
-                        .background(Color(0xF50F172A))
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    MapSearchBar(
-                        query = uiState.searchQuery,
-                        onQueryChange = { viewModel.onSearchQueryChanged(it) },
-                        onSearch = { viewModel.onSearchQueryChanged(it) },
-                        onClear = { viewModel.onSearchQueryChanged("") }
+        // 1. Primary View: Map takes 100% full screen in all modes
+        MapViewportCanvas(
+            uiState = uiState,
+            recenterTrigger = recenterTrigger,
+            isFrontFacing = isFrontFacing,
+            onPoiClicked = { viewModel.onPoiSelected(it) },
+            modifier = Modifier.fillMaxSize()
+        )
+
+        // 2. Top Layer: Compact expandable search button & category pills
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 16.dp, top = 14.dp, end = if (isLandscape) 90.dp else 16.dp)
+                .fillMaxWidth(if (isLandscape && isSearchExpanded) 0.52f else if (isSearchExpanded) 1f else 0.15f)
+        ) {
+            MapSearchBar(
+                query = uiState.searchQuery,
+                onQueryChange = { viewModel.onSearchQueryChanged(it) },
+                onSearch = { viewModel.onSearchQueryChanged(it) },
+                onClear = { viewModel.onSearchQueryChanged("") },
+                isExpanded = isSearchExpanded,
+                onToggleExpand = {
+                    isSearchExpanded = !isSearchExpanded
+                    if (!isSearchExpanded) {
+                        viewModel.onSearchQueryChanged("")
+                        viewModel.onCategoryFilterSelected(null)
+                    }
+                }
+            )
+
+            // Category filter pills: ONLY visible when search is active
+            AnimatedVisibility(
+                visible = isSearchExpanded,
+                enter = fadeIn() + slideInVertically { -it / 2 },
+                exit = fadeOut() + slideOutVertically { -it / 2 }
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    PoiQuickFilters(
+                        selectedCategory = uiState.selectedCategory,
+                        onCategorySelected = { viewModel.onCategoryFilterSelected(it) }
                     )
 
-                    // Search Results List
-                    if (uiState.searchQuery.isNotBlank() && uiState.nearbyPois.isNotEmpty()) {
+                    // Search Results or Category Results dropdown
+                    if ((uiState.searchQuery.isNotBlank() || uiState.selectedCategory != null) && uiState.nearbyPois.isNotEmpty()) {
                         Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 6.dp),
+                            shape = RoundedCornerShape(16.dp),
                             colors = CardDefaults.cardColors(containerColor = Color(0xF50F172A))
                         ) {
                             LazyColumn(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .heightIn(max = 180.dp)
+                                    .heightIn(max = if (isLandscape) 180.dp else 260.dp)
                                     .padding(6.dp)
                             ) {
                                 items(uiState.nearbyPois) { poi ->
@@ -149,26 +181,25 @@ fun MapScreen(
                                             .fillMaxWidth()
                                             .clickable {
                                                 viewModel.onPoiSelected(poi)
-                                                viewModel.onSearchQueryChanged("")
+                                                isSearchExpanded = false
                                             }
-                                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                                            .padding(horizontal = 12.dp, vertical = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         val iconEmoji = when (poi.category) {
-                                            "CITY" -> "🏙️"
                                             "PETROL" -> "⛽"
                                             "DHABA", "RESTAURANT" -> "🍛"
                                             "MECHANIC" -> "🔧"
                                             "VIEWPOINT" -> "🏔️"
                                             else -> "📍"
                                         }
-                                        Text(text = iconEmoji, fontSize = 18.sp)
-                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(text = iconEmoji, fontSize = 20.sp)
+                                        Spacer(modifier = Modifier.width(10.dp))
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
                                                 text = poi.name,
                                                 color = Color.White,
-                                                fontSize = 13.sp,
+                                                fontSize = 14.sp,
                                                 fontWeight = FontWeight.Bold
                                             )
                                             Text(
@@ -184,7 +215,7 @@ fun MapScreen(
                                         Text(
                                             text = "%.0f km".format(distKm),
                                             color = Color(0xFF38BDF8),
-                                            fontSize = 11.sp,
+                                            fontSize = 12.sp,
                                             fontWeight = FontWeight.SemiBold
                                         )
                                     }
@@ -193,114 +224,223 @@ fun MapScreen(
                             }
                         }
                     }
+                }
+            }
+        }
 
-                    PoiQuickFilters(
-                        selectedCategory = uiState.selectedCategory,
-                        onCategorySelected = { viewModel.onCategoryFilterSelected(it) }
-                    )
-
-                    // Route Overview Card
-                    if (uiState.calculatedRoute != null) {
-                        uiState.calculatedRoute?.let { route ->
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(14.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFA1E293B))
-                            ) {
-                                Column(modifier = Modifier.padding(10.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column {
-                                            Text(
-                                                text = "🏍️ Route (${route.ridingStyle})",
-                                                color = Color(0xFF38BDF8),
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            Text(
-                                                text = "${route.distanceKmFormatted} · ${route.etaDurationFormatted}",
-                                                color = Color.White,
-                                                fontSize = 18.sp,
-                                                fontWeight = FontWeight.Black
-                                            )
-                                        }
-                                        IconButton(onClick = { viewModel.clearRoute() }) {
-                                            Icon(
-                                                imageVector = Icons.Default.Close,
-                                                contentDescription = "Cancel",
-                                                tint = Color.LightGray
-                                            )
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Button(
-                                        onClick = { viewModel.startNavigation(onNavigateToActiveRide) },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(44.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
-                                        shape = RoundedCornerShape(10.dp)
-                                    ) {
-                                        Icon(imageVector = Icons.Default.Navigation, contentDescription = null, tint = Color.White)
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(text = "START RIDE", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                }
+        // 3. Calculated Route Overview Card
+        AnimatedVisibility(
+            visible = uiState.calculatedRoute != null,
+            enter = fadeIn() + slideInVertically { it },
+            exit = fadeOut() + slideOutVertically { it },
+            modifier = if (isLandscape) {
+                Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 16.dp, bottom = 86.dp)
+                    .width(300.dp)
+            } else {
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(start = 16.dp, end = 16.dp, bottom = 86.dp)
+                    .fillMaxWidth()
+            }
+        ) {
+            uiState.calculatedRoute?.let { route ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFA1E293B))
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "🏍️ Motorcycle Route (${route.ridingStyle})",
+                                    color = Color(0xFF38BDF8),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "${route.distanceKmFormatted} · ${route.etaDurationFormatted}",
+                                    color = Color.White,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
+                            IconButton(onClick = { viewModel.clearRoute() }) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Cancel",
+                                    tint = Color.LightGray
+                                )
                             }
                         }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = { viewModel.startNavigation(onNavigateToActiveRide) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(46.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Navigation,
+                                contentDescription = null,
+                                tint = Color.White
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "START RIDE",
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
+                }
+            }
+        }
 
-                    Spacer(modifier = Modifier.height(4.dp))
+        // 4. Spotify Player: Placed at bottom-left in landscape mode
+        Box(
+            modifier = if (isLandscape) {
+                Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 16.dp, bottom = 14.dp)
+                    .width(300.dp)
+            } else {
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .fillMaxWidth()
+            }
+        ) {
+            MiniSpotifyPlayer(
+                playerState = spotifyState,
+                onTogglePlayPause = { viewModel.toggleMusic() },
+                onSkipNext = { viewModel.nextTrack() },
+                onSkipPrevious = { viewModel.prevTrack() },
+                onOpenSpotify = { viewModel.openSpotify() }
+            )
+        }
 
-                    // Mini Spotify Player with album art
-                    MiniSpotifyPlayer(
-                        playerState = spotifyState,
-                        onTogglePlayPause = { viewModel.toggleMusic() },
-                        onSkipNext = { viewModel.nextTrack() },
-                        onSkipPrevious = { viewModel.prevTrack() },
-                        onOpenSpotify = { viewModel.openSpotify() }
-                    )
+        // 5. WhatsApp Location Peek popup (if friend shares location)
+        AnimatedVisibility(
+            visible = waMessages.isNotEmpty(),
+            enter = slideInVertically { -it },
+            exit = slideOutVertically { -it },
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 16.dp, start = 80.dp, end = 80.dp)
+        ) {
+            waMessages.firstOrNull()?.let { msg ->
+                WALocationPeekWidget(
+                    message = msg,
+                    onNavigateTo = { coords, link ->
+                        if (coords != null) {
+                            viewModel.calculateRouteTo(coords)
+                        }
+                        viewModel.dismissWAMessage(msg.id)
+                    },
+                    onDismiss = { viewModel.dismissWAMessage(msg.id) }
+                )
+            }
+        }
+
+        // 6. Right Side: Drawer in Landscape / Clean HUD in Portrait
+        if (isLandscape) {
+            // Collapsible HUD Drawer in Landscape Mode
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight(),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                // Floating Toggle Tab when closed
+                if (!isDrawerOpen) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
+                            .background(Color(0xF00F172A))
+                            .clickable { isDrawerOpen = true }
+                            .padding(horizontal = 8.dp, vertical = 14.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Default.ChevronLeft,
+                                contentDescription = "Open HUD Drawer",
+                                tint = Color(0xFF38BDF8),
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "HUD",
+                                color = Color.White,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
 
-                // Right Section: Map & HUD
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
+                // Sliding Drawer Panel when opened
+                AnimatedVisibility(
+                    visible = isDrawerOpen,
+                    enter = slideInHorizontally { it },
+                    exit = slideOutHorizontally { it }
                 ) {
-                    MapViewportCanvas(
-                        uiState = uiState,
-                        recenterTrigger = recenterTrigger,
-                        isFrontFacing = isFrontFacing,
-                        onPoiClicked = { viewModel.onPoiSelected(it) },
-                        modifier = Modifier.fillMaxSize()
-                    )
-
-                    // Right HUD Controls
                     Column(
                         modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .padding(end = 12.dp),
+                            .width(76.dp)
+                            .fillMaxHeight()
+                            .background(Color(0xF20F172A))
+                            .verticalScroll(rememberScrollState())
+                            .padding(vertical = 10.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        // Close Drawer Button
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF1E293B))
+                                .clickable { isDrawerOpen = false },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = "Close HUD",
+                                tint = Color.LightGray,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+
                         OrientationLockButton(
                             lockMode = orientationLock,
                             onClick = onToggleOrientationLock
                         )
+
                         CompassWidget(
                             bearing = uiState.bearing,
                             isFrontFacing = isFrontFacing,
                             onClick = { isFrontFacing = !isFrontFacing }
                         )
+
                         SpeedIndicator(speedKmh = uiState.speedKmh)
+
                         BatteryWidget(
                             percentage = batteryStatus.percentage,
                             isCharging = batteryStatus.isCharging
                         )
+
+                        // Recenter on GPS location
                         Box(
                             modifier = Modifier
                                 .size(44.dp)
@@ -315,20 +455,8 @@ fun MapScreen(
                                 tint = Color(0xFF38BDF8)
                             )
                         }
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xEE1E293B))
-                                .clickable { onOpenDownloads() },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Download,
-                                contentDescription = "Downloads",
-                                tint = Color.White
-                            )
-                        }
+
+                        // Settings Button (Guaranteed visible in drawer)
                         Box(
                             modifier = Modifier
                                 .size(44.dp)
@@ -347,171 +475,7 @@ fun MapScreen(
                 }
             }
         } else {
-            // ==============================================================
-            // PORTRAIT MOTORCYCLE LAYOUT
-            // ==============================================================
-            // High-Contrast Motorcycle Map Canvas
-            MapViewportCanvas(
-                uiState = uiState,
-                recenterTrigger = recenterTrigger,
-                isFrontFacing = isFrontFacing,
-                onPoiClicked = { viewModel.onPoiSelected(it) },
-                modifier = Modifier.fillMaxSize()
-            )
-
-            // Top Floating Control Layer: Search Bar & POI Filters
-            Column(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-            ) {
-                MapSearchBar(
-                    query = uiState.searchQuery,
-                    onQueryChange = { viewModel.onSearchQueryChanged(it) },
-                    onSearch = { viewModel.onSearchQueryChanged(it) },
-                    onClear = { viewModel.onSearchQueryChanged("") }
-                )
-
-                // Floating Search Results Dropdown (Purulia, Kolaghat, etc.)
-                if (uiState.searchQuery.isNotBlank() && uiState.nearbyPois.isNotEmpty()) {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xF50F172A))
-                    ) {
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = 280.dp)
-                                .padding(8.dp)
-                        ) {
-                            items(uiState.nearbyPois) { poi ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            viewModel.onPoiSelected(poi)
-                                            viewModel.onSearchQueryChanged("")
-                                        }
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    val iconEmoji = when (poi.category) {
-                                        "CITY" -> "🏙️"
-                                        "PETROL" -> "⛽"
-                                        "DHABA", "RESTAURANT" -> "🍛"
-                                        "MECHANIC" -> "🔧"
-                                        "VIEWPOINT" -> "🏔️"
-                                        else -> "📍"
-                                    }
-                                    Text(text = iconEmoji, fontSize = 22.sp)
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = poi.name,
-                                            color = Color.White,
-                                            fontSize = 15.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        Text(
-                                            text = poi.address ?: poi.brand ?: "West Bengal",
-                                            color = Color.LightGray,
-                                            fontSize = 12.sp,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                    val distKm = LatLng(uiState.userLocation.latitude, uiState.userLocation.longitude)
-                                        .distanceTo(LatLng(poi.latitude, poi.longitude)) / 1000.0
-                                    Text(
-                                        text = "%.0f km".format(distKm),
-                                        color = Color(0xFF38BDF8),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
-                                Divider(color = Color.White.copy(alpha = 0.08f), thickness = 0.5.dp)
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                PoiQuickFilters(
-                    selectedCategory = uiState.selectedCategory,
-                    onCategorySelected = { viewModel.onCategoryFilterSelected(it) }
-                )
-
-                // Category POI Quick Results (when filter chip is active)
-                if (uiState.selectedCategory != null && uiState.nearbyPois.isNotEmpty() && uiState.searchQuery.isBlank()) {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xF50F172A))
-                    ) {
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = 220.dp)
-                                .padding(8.dp)
-                        ) {
-                            items(uiState.nearbyPois) { poi ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { viewModel.onPoiSelected(poi) }
-                                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = when (poi.category) {
-                                            "CITY" -> "🏙️"
-                                            "PETROL" -> "⛽"
-                                            "DHABA", "RESTAURANT" -> "🍛"
-                                            "MECHANIC" -> "🔧"
-                                            "VIEWPOINT" -> "🏔️"
-                                            else -> "📍"
-                                        },
-                                        fontSize = 18.sp
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = poi.name,
-                                            color = Color.White,
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        Text(
-                                            text = poi.address ?: poi.brand ?: "",
-                                            color = Color.LightGray,
-                                            fontSize = 11.sp,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                    val distKm = LatLng(uiState.userLocation.latitude, uiState.userLocation.longitude)
-                                        .distanceTo(LatLng(poi.latitude, poi.longitude)) / 1000.0
-                                    Text(
-                                        text = "%.1f km".format(distKm),
-                                        color = Color(0xFF10B981),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Right HUD Panel: Orientation Lock, Compass, Speedometer, Battery Indicator, Actions
+            // Portrait HUD Cluster
             Column(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
@@ -523,18 +487,20 @@ fun MapScreen(
                     lockMode = orientationLock,
                     onClick = onToggleOrientationLock
                 )
+
                 CompassWidget(
                     bearing = uiState.bearing,
                     isFrontFacing = isFrontFacing,
                     onClick = { isFrontFacing = !isFrontFacing }
                 )
+
                 SpeedIndicator(speedKmh = uiState.speedKmh)
+
                 BatteryWidget(
                     percentage = batteryStatus.percentage,
                     isCharging = batteryStatus.isCharging
                 )
 
-                // Recenter on my GPS location button
                 Box(
                     modifier = Modifier
                         .size(44.dp)
@@ -547,22 +513,6 @@ fun MapScreen(
                         imageVector = Icons.Default.MyLocation,
                         contentDescription = "Recenter on Me",
                         tint = Color(0xFF38BDF8)
-                    )
-                }
-
-                // Quick Shortcut buttons for Settings & State Downloads
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xEE1E293B))
-                        .clickable { onOpenDownloads() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Download,
-                        contentDescription = "Downloads",
-                        tint = Color.White
                     )
                 }
 
@@ -581,113 +531,9 @@ fun MapScreen(
                     )
                 }
             }
-
-            // Bottom Controls: Route Preview / WhatsApp Peek / Spotify Floating Bar
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // 1. WhatsApp Location Peek popup (shows if friend sends location)
-                AnimatedVisibility(
-                    visible = waMessages.isNotEmpty(),
-                    enter = slideInVertically { it },
-                    exit = slideOutVertically { it }
-                ) {
-                    waMessages.firstOrNull()?.let { msg ->
-                        WALocationPeekWidget(
-                            message = msg,
-                            onNavigateTo = { coords, link ->
-                                if (coords != null) {
-                                    viewModel.calculateRouteTo(coords)
-                                }
-                                viewModel.dismissWAMessage(msg.id)
-                            },
-                            onDismiss = { viewModel.dismissWAMessage(msg.id) }
-                        )
-                    }
-                }
-
-                // 2. Route Calculated Overview Card
-                AnimatedVisibility(visible = uiState.calculatedRoute != null) {
-                    uiState.calculatedRoute?.let { route ->
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFA1E293B))
-                        ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column {
-                                        Text(
-                                            text = "🏍️ Motorcycle Route (${route.ridingStyle})",
-                                            color = Color(0xFF38BDF8),
-                                            fontSize = 15.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        Text(
-                                            text = "${route.distanceKmFormatted} · ${route.etaDurationFormatted}",
-                                            color = Color.White,
-                                            fontSize = 20.sp,
-                                            fontWeight = FontWeight.Black
-                                        )
-                                    }
-
-                                    IconButton(onClick = { viewModel.clearRoute() }) {
-                                        Icon(
-                                            imageVector = Icons.Default.Close,
-                                            contentDescription = "Cancel",
-                                            tint = Color.LightGray
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(10.dp))
-
-                                Button(
-                                    onClick = { viewModel.startNavigation(onNavigateToActiveRide) },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(48.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Navigation,
-                                        contentDescription = null,
-                                        tint = Color.White
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "START RIDE",
-                                        color = Color.White,
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // 3. Mini Spotify Widget (Glove-friendly)
-                MiniSpotifyPlayer(
-                    playerState = spotifyState,
-                    onTogglePlayPause = { viewModel.toggleMusic() },
-                    onSkipNext = { viewModel.nextTrack() },
-                    onSkipPrevious = { viewModel.prevTrack() },
-                    onOpenSpotify = { viewModel.openSpotify() }
-                )
-            }
         }
 
-        // Calculating Route Spinner
+        // 7. Route Calculating Indicator
         if (uiState.isCalculatingRoute) {
             Box(
                 modifier = Modifier
@@ -717,8 +563,8 @@ fun MapScreen(
 fun MapViewportCanvas(
     uiState: MapUiState,
     recenterTrigger: Int,
-    isFrontFacing: Boolean,
-    onPoiClicked: (com.motonav.data.local.db.entities.PoiEntity) -> Unit,
+    isFrontFacing: Boolean = false,
+    onPoiClicked: (com.motonav.data.local.db.entities.PoiEntity) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -750,15 +596,10 @@ fun MapViewportCanvas(
 
     var mapInstance by remember { mutableStateOf<MapLibreMap?>(null) }
     var loadedStyleKey by remember { mutableStateOf<String?>(null) }
-    var isStyleLoaded by remember { mutableStateOf(false) }
-    var lastSelectedPoiId by remember { mutableStateOf<Long?>(null) }
-    var lastHandledRecenter by remember { mutableStateOf(0) }
-    var hasCenteredInitialLocation by remember { mutableStateOf(false) }
-    var lastWasFrontFacing by remember { mutableStateOf(false) }
+    var isMapReady by remember { mutableStateOf(false) }
 
     val resolvedStyle = remember(uiState.activeStyleJson, uiState.isDarkTheme) {
         if (uiState.activeStyleJson.trim().startsWith("{")) {
-            // Local custom PMTiles vector style JSON
             uiState.activeStyleJson
         } else if (uiState.isDarkTheme) {
             MapStyleManager.ONLINE_STYLE_DARK
@@ -767,119 +608,60 @@ fun MapViewportCanvas(
         }
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
-        AndroidView(
-            factory = {
-                mapView.apply {
-                    getMapAsync { map ->
-                        mapInstance = map
-                        map.uiSettings.isCompassEnabled = false
-                        map.uiSettings.isLogoEnabled = false
-                        map.uiSettings.isAttributionEnabled = false
+    AndroidView(
+        factory = {
+            mapView.apply {
+                getMapAsync { map ->
+                    mapInstance = map
+                    map.uiSettings.isCompassEnabled = false
+                    map.uiSettings.isLogoEnabled = false
+                    map.uiSettings.isAttributionEnabled = false
 
-                        loadMapScreenStyle(map, mapView, resolvedStyle) {
-                            loadedStyleKey = resolvedStyle
-                            isStyleLoaded = true
-                            refreshMapScreenAnnotations(map, uiState)
-                            if (!hasCenteredInitialLocation) {
-                                val userPos = MapLibreLatLng(uiState.userLocation.latitude, uiState.userLocation.longitude)
-                                val initialBearing = if (isFrontFacing) uiState.bearing.toDouble() else 0.0
-                                val initialTilt = if (isFrontFacing) 35.0 else 0.0
-                                map.cameraPosition = CameraPosition.Builder()
-                                    .target(userPos)
-                                    .zoom(14.0)
-                                    .bearing(initialBearing)
-                                    .tilt(initialTilt)
-                                    .build()
-                                hasCenteredInitialLocation = true
-                            }
-                        }
-                    }
-                }
-            },
-            modifier = Modifier.fillMaxSize(),
-            update = { _ ->
-                val map = mapInstance ?: return@AndroidView
-
-                // 1. Reload style ONLY if the target style actually changed
-                if (loadedStyleKey != resolvedStyle) {
-                    isStyleLoaded = false
-                    loadMapScreenStyle(map, mapView, resolvedStyle) {
+                    loadStyleWithFallback(map, mapView, resolvedStyle) {
                         loadedStyleKey = resolvedStyle
-                        isStyleLoaded = true
-                        refreshMapScreenAnnotations(map, uiState)
-                    }
-                    return@AndroidView
-                }
-
-                // 2. If style is loaded, refresh markers and polyline
-                if (isStyleLoaded) {
-                    refreshMapScreenAnnotations(map, uiState)
-
-                    val userPos = MapLibreLatLng(uiState.userLocation.latitude, uiState.userLocation.longitude)
-                    val targetBearing = if (isFrontFacing) uiState.bearing.toDouble() else 0.0
-                    val targetTilt = if (isFrontFacing) 35.0 else 0.0
-
-                    // Check for Recenter button press
-                    if (recenterTrigger != lastHandledRecenter) {
-                        lastHandledRecenter = recenterTrigger
-                        val cameraPosition = CameraPosition.Builder()
-                            .target(userPos)
-                            .zoom(14.5)
-                            .bearing(targetBearing)
-                            .tilt(targetTilt)
-                            .build()
-                        map.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition), 800)
-                    } else if (isFrontFacing) {
-                        // Keep camera following user position and bearing in Front-Facing mode
-                        val cameraPosition = CameraPosition.Builder()
-                            .target(userPos)
-                            .zoom(map.cameraPosition.zoom.coerceAtLeast(14.0))
-                            .bearing(targetBearing)
-                            .tilt(targetTilt)
-                            .build()
-                        map.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition), 500)
-                    } else if (lastWasFrontFacing && !isFrontFacing) {
-                        // User switched from Front-Facing to North-Up mode: reset bearing to 0.0 and tilt to 0.0
-                        val cameraPosition = CameraPosition.Builder()
-                            .target(userPos)
-                            .zoom(map.cameraPosition.zoom)
-                            .bearing(0.0)
-                            .tilt(0.0)
-                            .build()
-                        map.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition), 600)
-                    }
-                    lastWasFrontFacing = isFrontFacing
-
-                    // Animate to POI if a new POI was selected
-                    val currentPoiId = uiState.selectedPoi?.osmId
-                    if (currentPoiId != null && currentPoiId != lastSelectedPoiId) {
-                        lastSelectedPoiId = currentPoiId
-                        val dest = MapLibreLatLng(uiState.selectedPoi.latitude, uiState.selectedPoi.longitude)
-                        map.animateCamera(CameraUpdateFactory.newLatLngZoom(dest, 13.5), 1200)
+                        isMapReady = true
+                        updateMapCameraAndLayers(map, uiState, isFrontFacing)
                     }
                 }
             }
-        )
+        },
+        modifier = modifier,
+        update = { _ ->
+            val map = mapInstance ?: return@AndroidView
 
-        // Status pill at bottom right
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(bottom = 80.dp, end = 16.dp)
-                .background(Color(0xD00F172A), RoundedCornerShape(12.dp))
-                .padding(horizontal = 8.dp, vertical = 4.dp)
-        ) {
-            Text(
-                text = "🗺️ MapLibre · ${uiState.activeRegionId.replace('_', ' ').uppercase()}",
-                color = Color.LightGray,
-                fontSize = 11.sp
-            )
+            if (loadedStyleKey != resolvedStyle) {
+                isMapReady = false
+                loadStyleWithFallback(map, mapView, resolvedStyle) {
+                    loadedStyleKey = resolvedStyle
+                    isMapReady = true
+                    updateMapCameraAndLayers(map, uiState, isFrontFacing)
+                }
+            } else if (isMapReady) {
+                updateMapCameraAndLayers(map, uiState, isFrontFacing)
+            }
+        }
+    )
+
+    // Recenter camera when trigger increments
+    LaunchedEffect(recenterTrigger) {
+        if (recenterTrigger > 0) {
+            mapInstance?.let { map ->
+                val userPos = MapLibreLatLng(uiState.userLocation.latitude, uiState.userLocation.longitude)
+                val targetBearing = if (isFrontFacing) uiState.bearing.toDouble() else 0.0
+                val targetTilt = if (isFrontFacing) 45.0 else 0.0
+                val cameraPosition = CameraPosition.Builder()
+                    .target(userPos)
+                    .zoom(15.5)
+                    .tilt(targetTilt)
+                    .bearing(targetBearing)
+                    .build()
+                map.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition), 800)
+            }
         }
     }
 }
 
-private fun loadMapScreenStyle(
+private fun loadStyleWithFallback(
     map: MapLibreMap,
     mapView: MapView,
     styleTarget: String,
@@ -892,7 +674,7 @@ private fun loadMapScreenStyle(
     }
 
     mapView.addOnDidFailLoadingMapListener { error ->
-        android.util.Log.e("MapScreen", "Failed to load style $styleTarget: $error, falling back to OSM raster")
+        android.util.Log.e("MapViewportCanvas", "Failed to load style $styleTarget: $error, falling back to OSM raster")
         try {
             map.setStyle(Style.Builder().fromJson(MapStyleManager.OSM_RASTER_FALLBACK)) {
                 onLoaded()
@@ -913,33 +695,73 @@ private fun loadMapScreenStyle(
     }
 }
 
-private fun refreshMapScreenAnnotations(map: MapLibreMap, uiState: MapUiState) {
+private fun updateMapCameraAndLayers(
+    map: MapLibreMap,
+    uiState: MapUiState,
+    isFrontFacing: Boolean
+) {
+    val userPos = MapLibreLatLng(uiState.userLocation.latitude, uiState.userLocation.longitude)
+
+    // 1. Camera orientation
+    val currentCamera = map.cameraPosition
+    val targetBearing = if (isFrontFacing) uiState.bearing.toDouble() else 0.0
+    val targetTilt = if (isFrontFacing) 45.0 else 0.0
+
+    if (currentCamera.target == null || (currentCamera.target.latitude == 0.0 && currentCamera.target.longitude == 0.0)) {
+        val cameraPosition = CameraPosition.Builder()
+            .target(userPos)
+            .zoom(14.5)
+            .tilt(targetTilt)
+            .bearing(targetBearing)
+            .build()
+        map.moveCamera(CameraUpdateFactory.newCameraPosition(cameraPosition))
+    }
+
+    // 2. Render Markers and Route Polylines
     map.clear()
 
-    // 1. Rider Marker
-    val userPos = MapLibreLatLng(uiState.userLocation.latitude, uiState.userLocation.longitude)
-    map.addMarker(
-        MarkerOptions()
-            .position(userPos)
-            .title("Your Location")
-    )
-
-    // 2. Route polyline & destination marker
+    // Draw Route Polyline if present
     uiState.calculatedRoute?.let { route ->
         val polyPoints = route.points.map { MapLibreLatLng(it.latitude, it.longitude) }
         if (polyPoints.isNotEmpty()) {
             map.addPolyline(
                 PolylineOptions()
                     .addAll(polyPoints)
-                    .color(AndroidColor.parseColor("#0284C7"))
+                    .color(AndroidColor.parseColor("#38BDF8"))
                     .width(7f)
             )
+
             val dest = polyPoints.last()
             map.addMarker(
                 MarkerOptions()
                     .position(dest)
-                    .title(uiState.selectedPoi?.name ?: "Destination")
+                    .title("🏁 Destination")
             )
         }
     }
+
+    // Draw POIs
+    uiState.nearbyPois.take(15).forEach { poi ->
+        val emoji = when (poi.category) {
+            "PETROL" -> "⛽"
+            "DHABA", "RESTAURANT" -> "🍛"
+            "MECHANIC" -> "🔧"
+            "VIEWPOINT" -> "🏔️"
+            else -> "📍"
+        }
+        map.addMarker(
+            MarkerOptions()
+                .position(MapLibreLatLng(poi.latitude, poi.longitude))
+                .title("$emoji ${poi.name}")
+                .snippet(poi.address ?: poi.brand ?: "")
+        )
+    }
+
+    // User GPS location marker
+    map.addMarker(
+        MarkerOptions()
+            .position(userPos)
+            .title("🏍️ My Location")
+            .snippet("${uiState.speedKmh.toInt()} km/h")
+    )
 }

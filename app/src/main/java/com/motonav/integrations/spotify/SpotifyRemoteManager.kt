@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.media.AudioManager
 import android.media.session.MediaController
 import android.media.session.MediaSession
@@ -18,10 +19,17 @@ import android.view.KeyEvent
 import androidx.core.content.ContextCompat
 import com.motonav.integrations.whatsapp.WANotificationService
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -50,6 +58,9 @@ class SpotifyRemoteManager @Inject constructor(
     private var nextPendingIntent: PendingIntent? = null
     private var prevPendingIntent: PendingIntent? = null
 
+    private val albumArtCache = mutableMapOf<String, Bitmap>()
+    private val coroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
     private val spotifyBroadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context?, intent: Intent?) {
             if (intent == null) return
@@ -63,8 +74,9 @@ class SpotifyRemoteManager @Inject constructor(
                         ?: intent.getCharSequenceExtra("artist")?.toString()
                     val isPlaying = intent.getBooleanExtra("playing", _playerState.value.isPlaying)
                     val length = intent.getIntExtra("length", 0) * 1000L
+                    val trackId = intent.getStringExtra("id") ?: ""
 
-                    Log.d(TAG, "Spotify metadata broadcast: track=$track, artist=$artist, playing=$isPlaying")
+                    Log.d(TAG, "Spotify metadata broadcast: track=$track, artist=$artist, playing=$isPlaying, id=$trackId")
                     _playerState.update { current ->
                         current.copy(
                             trackTitle = track?.takeIf { it.isNotBlank() } ?: current.trackTitle,
@@ -74,6 +86,12 @@ class SpotifyRemoteManager @Inject constructor(
                             isConnected = true
                         )
                     }
+
+                    // Fetch album art if not already present
+                    if (trackId.isNotBlank()) {
+                        fetchAlbumArtAsync(trackId)
+                    }
+
                     if (activeMediaController == null) {
                         findAndAttachMediaSession()
                     }
@@ -150,7 +168,8 @@ class SpotifyRemoteManager @Inject constructor(
         playPauseAction: PendingIntent?,
         nextAction: PendingIntent?,
         prevAction: PendingIntent?,
-        isPlaying: Boolean?
+        isPlaying: Boolean?,
+        trackId: String? = null
     ) {
         if (playPauseAction != null) playPausePendingIntent = playPauseAction
         if (nextAction != null) nextPendingIntent = nextAction
@@ -173,6 +192,54 @@ class SpotifyRemoteManager @Inject constructor(
                 isPlaying = isPlaying ?: current.isPlaying,
                 isConnected = true
             )
+        }
+
+        if (albumArt == null && !trackId.isNullOrBlank()) {
+            fetchAlbumArtAsync(trackId)
+        }
+    }
+
+    /**
+     * Fetches public Spotify album artwork via oEmbed API when not available from notification extras.
+     */
+    fun fetchAlbumArtAsync(trackUriOrId: String) {
+        val cleanId = trackUriOrId.substringAfterLast(":").trim()
+        if (cleanId.isBlank()) return
+
+        val cached = albumArtCache[cleanId]
+        if (cached != null) {
+            _playerState.update { it.copy(albumArt = cached) }
+            return
+        }
+
+        coroutineScope.launch {
+            try {
+                val endpoint = "https://open.spotify.com/oembed?url=https://open.spotify.com/track/$cleanId"
+                val conn = URL(endpoint).openConnection() as HttpURLConnection
+                conn.connectTimeout = 4000
+                conn.readTimeout = 4000
+                conn.requestMethod = "GET"
+                conn.setRequestProperty("User-Agent", "MotoNav/1.0")
+
+                if (conn.responseCode == 200) {
+                    val body = conn.inputStream.bufferedReader().use { it.readText() }
+                    val json = JSONObject(body)
+                    val thumbUrl = json.optString("thumbnail_url")
+                    if (thumbUrl.isNotBlank()) {
+                        val imgConn = URL(thumbUrl).openConnection() as HttpURLConnection
+                        imgConn.connectTimeout = 4000
+                        imgConn.readTimeout = 4000
+                        val bitmap = BitmapFactory.decodeStream(imgConn.inputStream)
+                        if (bitmap != null) {
+                            albumArtCache[cleanId] = bitmap
+                            _playerState.update { it.copy(albumArt = bitmap) }
+                            Log.d(TAG, "Loaded Spotify album art thumbnail for $cleanId")
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.d(TAG, "oEmbed album art fetch failed: ${e.message}")
+            }
         }
     }
 
@@ -247,103 +314,120 @@ class SpotifyRemoteManager @Inject constructor(
         }
     }
 
+    /**
+     * Executes Play or Pause cleanly without rapid double-triggering or command collisions.
+     */
     fun togglePlayPause() {
-        val currentPlaying = _playerState.value.isPlaying
-        val willPlay = !currentPlaying
+        val isActuallyPlaying = (activeMediaController?.playbackState?.state == PlaybackState.STATE_PLAYING)
+            || audioManager.isMusicActive
+            || _playerState.value.isPlaying
 
-        // 1. MediaController transport controls
+        var commandExecuted = false
+
+        // Method 1: MediaController transport controls (Exact and authoritative)
         if (activeMediaController != null) {
             try {
-                if (currentPlaying) {
+                if (isActuallyPlaying) {
                     activeMediaController?.transportControls?.pause()
                 } else {
                     activeMediaController?.transportControls?.play()
                 }
+                commandExecuted = true
             } catch (e: Exception) {
                 Log.w(TAG, "Transport controls toggle failed: ${e.message}")
             }
         }
 
-        // 2. Notification Action PendingIntent fallback
-        try {
-            playPausePendingIntent?.send()
-        } catch (e: Exception) {
-            Log.d(TAG, "playPause pending intent send failed: ${e.message}")
-        }
-
-        // 3. Explicit media button broadcast targeted directly to Spotify
-        sendSpotifyMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
-
-        // 4. Spotify widget broadcast actions
-        val widgetAction = if (currentPlaying) {
-            "com.spotify.mobile.android.ui.widget.PAUSE"
-        } else {
-            "com.spotify.mobile.android.ui.widget.PLAY"
-        }
-        try {
-            val intent = Intent(widgetAction).apply {
-                setPackage(SPOTIFY_PACKAGE_NAME)
+        // Method 2: Notification Action PendingIntent (Only if MediaController wasn't connected)
+        if (!commandExecuted && playPausePendingIntent != null) {
+            try {
+                playPausePendingIntent?.send()
+                commandExecuted = true
+            } catch (e: Exception) {
+                Log.d(TAG, "playPause pending intent send failed: ${e.message}")
             }
-            context.sendBroadcast(intent)
-        } catch (e: Exception) {
-            Log.d(TAG, "Widget play/pause broadcast failed: ${e.message}")
         }
 
-        // Optimistic UI state update
-        _playerState.update { it.copy(isPlaying = willPlay) }
+        // Method 3: Targeted Media Key or Widget Broadcast
+        if (!commandExecuted) {
+            val keyCode = if (isActuallyPlaying) KeyEvent.KEYCODE_MEDIA_PAUSE else KeyEvent.KEYCODE_MEDIA_PLAY
+            sendSpotifyMediaKey(keyCode)
+
+            val widgetAction = if (isActuallyPlaying) {
+                "com.spotify.mobile.android.ui.widget.PAUSE"
+            } else {
+                "com.spotify.mobile.android.ui.widget.PLAY"
+            }
+            try {
+                val intent = Intent(widgetAction).apply {
+                    setPackage(SPOTIFY_PACKAGE_NAME)
+                }
+                context.sendBroadcast(intent)
+            } catch (ignored: Exception) {}
+        }
+
+        _playerState.update { it.copy(isPlaying = !isActuallyPlaying) }
     }
 
     fun skipNext() {
+        var commandExecuted = false
         if (activeMediaController != null) {
             try {
                 activeMediaController?.transportControls?.skipToNext()
+                commandExecuted = true
             } catch (e: Exception) {
                 Log.w(TAG, "Transport controls skipToNext failed: ${e.message}")
             }
         }
 
-        try {
-            nextPendingIntent?.send()
-        } catch (e: Exception) {
-            Log.d(TAG, "next pending intent send failed: ${e.message}")
+        if (!commandExecuted && nextPendingIntent != null) {
+            try {
+                nextPendingIntent?.send()
+                commandExecuted = true
+            } catch (e: Exception) {
+                Log.d(TAG, "next pending intent send failed: ${e.message}")
+            }
         }
 
-        sendSpotifyMediaKey(KeyEvent.KEYCODE_MEDIA_NEXT)
-
-        try {
-            val intent = Intent("com.spotify.mobile.android.ui.widget.NEXT").apply {
-                setPackage(SPOTIFY_PACKAGE_NAME)
-            }
-            context.sendBroadcast(intent)
-        } catch (e: Exception) {
-            Log.d(TAG, "Widget next broadcast failed: ${e.message}")
+        if (!commandExecuted) {
+            sendSpotifyMediaKey(KeyEvent.KEYCODE_MEDIA_NEXT)
+            try {
+                val intent = Intent("com.spotify.mobile.android.ui.widget.NEXT").apply {
+                    setPackage(SPOTIFY_PACKAGE_NAME)
+                }
+                context.sendBroadcast(intent)
+            } catch (ignored: Exception) {}
         }
     }
 
     fun skipPrevious() {
+        var commandExecuted = false
         if (activeMediaController != null) {
             try {
                 activeMediaController?.transportControls?.skipToPrevious()
+                commandExecuted = true
             } catch (e: Exception) {
                 Log.w(TAG, "Transport controls skipToPrevious failed: ${e.message}")
             }
         }
 
-        try {
-            prevPendingIntent?.send()
-        } catch (e: Exception) {
-            Log.d(TAG, "prev pending intent send failed: ${e.message}")
+        if (!commandExecuted && prevPendingIntent != null) {
+            try {
+                prevPendingIntent?.send()
+                commandExecuted = true
+            } catch (e: Exception) {
+                Log.d(TAG, "prev pending intent send failed: ${e.message}")
+            }
         }
 
-        sendSpotifyMediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
-
-        try {
-            val intent = Intent("com.spotify.mobile.android.ui.widget.PREVIOUS").apply {
-                setPackage(SPOTIFY_PACKAGE_NAME)
-            }
-            context.sendBroadcast(intent)
-        } catch (e: Exception) {
-            Log.d(TAG, "Widget previous broadcast failed: ${e.message}")
+        if (!commandExecuted) {
+            sendSpotifyMediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+            try {
+                val intent = Intent("com.spotify.mobile.android.ui.widget.PREVIOUS").apply {
+                    setPackage(SPOTIFY_PACKAGE_NAME)
+                }
+                context.sendBroadcast(intent)
+            } catch (ignored: Exception) {}
         }
     }
 

@@ -184,7 +184,8 @@ class MainActivity : ComponentActivity() {
                         Screen.SETTINGS -> {
                             SettingsScreen(
                                 preferencesStore = preferencesStore,
-                                onBack = { currentScreen = Screen.MAP }
+                                onBack = { currentScreen = Screen.MAP },
+                                onNavigateToDownloads = { currentScreen = Screen.DOWNLOADS }
                             )
                         }
 

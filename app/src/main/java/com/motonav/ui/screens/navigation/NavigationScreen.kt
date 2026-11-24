@@ -4,7 +4,10 @@ import android.content.res.Configuration
 import android.os.Bundle
 import android.graphics.Color as AndroidColor
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,12 +18,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -31,6 +40,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -87,6 +97,7 @@ fun NavigationScreen(
 ) {
     val navStatus by ferrostarBridge.navigationState.collectAsState()
     var isFrontFacing by remember { mutableStateOf(true) } // Motorcycle Front-Facing mode by default
+    var isDrawerOpen by remember { mutableStateOf(false) }
 
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -98,112 +109,164 @@ fun NavigationScreen(
     ) {
         when (val status = navStatus) {
             is NavigationStatus.Navigating -> {
+                // 1. Primary Full-Screen 3D Navigation Map (in all orientations)
+                NavigationMapViewport(
+                    status = status,
+                    styleJson = styleJson,
+                    isDarkTheme = isDarkTheme,
+                    isFrontFacing = isFrontFacing,
+                    modifier = Modifier.fillMaxSize()
+                )
+
                 if (isLandscape) {
                     // ==============================================================
-                    // LANDSCAPE MOTORCYCLE COCKPIT DUAL-PANE LAYOUT
+                    // LANDSCAPE PRIMARY MAP VIEW WITH BOTTOM-LEFT SPOTIFY & RIGHT DRAWER
                     // ==============================================================
-                    Row(modifier = Modifier.fillMaxSize()) {
-                        // Left Dashboard Panel (320dp width, full height)
-                        Column(
-                            modifier = Modifier
-                                .width(320.dp)
-                                .fillMaxHeight()
-                                .background(Color(0xF5020617))
-                                .verticalScroll(rememberScrollState())
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            // Turn Maneuver Header
-                            ManeuverBanner(
-                                maneuver = status.currentManeuver,
-                                distanceToManeuverMeters = status.distanceToNextManeuverMeters,
-                                isOffRoute = status.isOffRoute
-                            )
 
-                            // Cockpit Indicators Row: Speedometer + Compass + Orientation Lock + Battery
-                            Row(
+                    // Top-Left: Floating Maneuver Instruction Banner
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(start = 16.dp, top = 14.dp)
+                            .width(310.dp)
+                    ) {
+                        ManeuverBanner(
+                            maneuver = status.currentManeuver,
+                            distanceToManeuverMeters = status.distanceToNextManeuverMeters,
+                            isOffRoute = status.isOffRoute
+                        )
+                    }
+
+                    // Bottom-Left: Floating ETA Bar & Spotify Widget
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(start = 16.dp, bottom = 14.dp)
+                            .width(310.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // WhatsApp Location Alert if received
+                        AnimatedVisibility(visible = waMessages.isNotEmpty()) {
+                            waMessages.firstOrNull()?.let { msg ->
+                                WALocationPeekWidget(
+                                    message = msg,
+                                    onNavigateTo = { coords, _ ->
+                                        onNavigateToNewLocation(coords)
+                                        onDismissWAMessage(msg.id)
+                                    },
+                                    onDismiss = { onDismissWAMessage(msg.id) }
+                                )
+                            }
+                        }
+
+                        ETABar(
+                            remainingDistanceMeters = status.remainingDistanceTotalMeters,
+                            remainingTimeMillis = status.remainingTimeTotalMillis,
+                            onEndRide = onEndRide
+                        )
+
+                        MiniSpotifyPlayer(
+                            playerState = spotifyState,
+                            onTogglePlayPause = onTogglePlayPause,
+                            onSkipNext = onSkipNext,
+                            onSkipPrevious = onSkipPrevious,
+                            onOpenSpotify = onOpenSpotify
+                        )
+                    }
+
+                    // Right Edge: Collapsible HUD Drawer
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .fillMaxHeight(),
+                        contentAlignment = Alignment.CenterEnd
+                    ) {
+                        // Toggle Tab when closed
+                        if (!isDrawerOpen) {
+                            Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 2.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                    .clip(RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
+                                    .background(Color(0xF0020617))
+                                    .clickable { isDrawerOpen = true }
+                                    .padding(horizontal = 8.dp, vertical = 14.dp),
+                                contentAlignment = Alignment.Center
                             ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        imageVector = Icons.Default.ChevronLeft,
+                                        contentDescription = "Open Gauges",
+                                        tint = Color(0xFF38BDF8),
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "${status.currentSpeedKmh.toInt()}",
+                                        color = Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                }
+                            }
+                        }
+
+                        // Drawer Panel when open
+                        AnimatedVisibility(
+                            visible = isDrawerOpen,
+                            enter = slideInHorizontally { it },
+                            exit = slideOutHorizontally { it }
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .width(76.dp)
+                                    .fillMaxHeight()
+                                    .background(Color(0xF5020617))
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(vertical = 10.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                // Close Drawer
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF1E293B))
+                                        .clickable { isDrawerOpen = false },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ChevronRight,
+                                        contentDescription = "Close HUD",
+                                        tint = Color.LightGray,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+
                                 SpeedIndicator(speedKmh = status.currentSpeedKmh)
+
                                 CompassWidget(
                                     bearing = status.currentBearing,
                                     isFrontFacing = isFrontFacing,
                                     onClick = { isFrontFacing = !isFrontFacing }
                                 )
+
                                 OrientationLockButton(
                                     lockMode = orientationLock,
                                     onClick = onToggleOrientationLock
                                 )
+
                                 BatteryWidget(
                                     percentage = batteryPercentage,
                                     isCharging = isCharging
                                 )
                             }
-
-                            // WhatsApp Location Alert (if shared during ride)
-                            AnimatedVisibility(visible = waMessages.isNotEmpty()) {
-                                waMessages.firstOrNull()?.let { msg ->
-                                    WALocationPeekWidget(
-                                        message = msg,
-                                        onNavigateTo = { coords, _ ->
-                                            onNavigateToNewLocation(coords)
-                                            onDismissWAMessage(msg.id)
-                                        },
-                                        onDismiss = { onDismissWAMessage(msg.id) }
-                                    )
-                                }
-                            }
-
-                            // ETA bar with compact End Ride button
-                            ETABar(
-                                remainingDistanceMeters = status.remainingDistanceTotalMeters,
-                                remainingTimeMillis = status.remainingTimeTotalMillis,
-                                onEndRide = onEndRide
-                            )
-
-                            // Spotify Glove-Friendly Player with album art
-                            MiniSpotifyPlayer(
-                                playerState = spotifyState,
-                                onTogglePlayPause = onTogglePlayPause,
-                                onSkipNext = onSkipNext,
-                                onSkipPrevious = onSkipPrevious,
-                                onOpenSpotify = onOpenSpotify
-                            )
-                        }
-
-                        // Right 3D Navigation Map Viewport (Takes remaining screen width & 100% height)
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                        ) {
-                            NavigationMapViewport(
-                                status = status,
-                                styleJson = styleJson,
-                                isDarkTheme = isDarkTheme,
-                                isFrontFacing = isFrontFacing,
-                                modifier = Modifier.fillMaxSize()
-                            )
                         }
                     }
                 } else {
                     // ==============================================================
                     // PORTRAIT MOTORCYCLE COCKPIT LAYOUT
                     // ==============================================================
-                    // 1. Fullscreen 3D Motorcycle Navigation Map Viewport
-                    NavigationMapViewport(
-                        status = status,
-                        styleJson = styleJson,
-                        isDarkTheme = isDarkTheme,
-                        isFrontFacing = isFrontFacing,
-                        modifier = Modifier.fillMaxSize()
-                    )
-
-                    // 2. Top: Floating Turn-by-Turn Maneuver Instruction Banner
+                    // Top: Floating Turn-by-Turn Maneuver Instruction Banner
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopCenter)
@@ -216,7 +279,7 @@ fun NavigationScreen(
                         )
                     }
 
-                    // 3. Right HUD: Orientation Lock, Compass, Speedometer, Battery Indicator
+                    // Right HUD: Orientation Lock, Compass, Speedometer, Battery Indicator
                     Column(
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
@@ -237,7 +300,7 @@ fun NavigationScreen(
                         BatteryWidget(percentage = batteryPercentage, isCharging = isCharging)
                     }
 
-                    // 4. Bottom Controls: ETA Bar + WhatsApp Location Peek + Spotify Floating Bar
+                    // Bottom Controls: WhatsApp Peek + ETA Bar + Spotify Player
                     Column(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
@@ -258,14 +321,12 @@ fun NavigationScreen(
                             }
                         }
 
-                        // ETA Bar
                         ETABar(
                             remainingDistanceMeters = status.remainingDistanceTotalMeters,
                             remainingTimeMillis = status.remainingTimeTotalMillis,
                             onEndRide = onEndRide
                         )
 
-                        // Spotify mini player (glove-friendly touch targets with album art)
                         MiniSpotifyPlayer(
                             playerState = spotifyState,
                             onTogglePlayPause = onTogglePlayPause,

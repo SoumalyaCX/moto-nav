@@ -1,7 +1,9 @@
 package com.motonav.integrations.spotify
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,7 +52,11 @@ fun MiniSpotifyPlayer(
             .fillMaxWidth()
             .height(68.dp)
             .background(
-                color = Color(0xEE0F172A),
+                color = Color(0xF50F172A),
+                shape = RoundedCornerShape(16.dp)
+            )
+            .border(
+                BorderStroke(1.dp, Color(0x3338BDF8)),
                 shape = RoundedCornerShape(16.dp)
             )
             .padding(horizontal = 8.dp),

@@ -50,6 +50,7 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     preferencesStore: PreferencesStore,
     onBack: () -> Unit,
+    onNavigateToDownloads: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -97,6 +98,41 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Offline Vector Map Downloads (Moved from map HUD)
+            item {
+                SettingsCard(title = "📥 Offline Vector Maps") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onNavigateToDownloads() }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Manage Downloaded Regions",
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Download state PMTiles for 100% offline navigation without cellular network",
+                                color = Color.LightGray,
+                                fontSize = 12.sp
+                            )
+                        }
+                        Button(
+                            onClick = onNavigateToDownloads,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Open", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
             // 1. Dark Mode / Theme Section (Auto + Manual as requested)
             item {
                 SettingsCard(title = "🌓 Map Theme & Dark Mode") {
