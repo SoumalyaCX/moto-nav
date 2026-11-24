@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>MotoNav — Motorcycle Navigation In-Browser Simulator</title>
+  <!-- MapLibre GL JS -->
+  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      user-select: none;
+    }
+
+    body {
+      background: #020617;
+      color: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Phone Mockup Frame */
+    .phone-container {
+      width: 100%;
+      max-width: 420px;
+      height: 100vh;
+      max-height: 880px;
+      background: #0f172a;
+      border-radius: 36px;
+      border: 8px solid #334155;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Map container */
+    #map {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+    }
+
+    /* UI Overlay Layer */
+    .ui-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 16px;
+    }
+
+    .interactive {
+      pointer-events: auto;
+    }
+
+    /* Top Search & Filter Bar */
+    .top-bar {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .search-box {
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(8px);
+      border-radius: 24px;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .search-box input {
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-size: 14px;
+      width: 100%;
+      outline: none;
+    }
+
+    .chips-row {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .chips-row::-webkit-scrollbar { display: none; }
+
+    .chip {
+      background: rgba(30, 41, 59, 0.9);
+      border-radius: 16px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      cursor: pointer;
+      border: 1px solid rgba(255,255,255,0.08);
+      transition: all 0.2s;
+    }
+    .chip.active {
+      background: #0284c7;
+      color: white;
+    }
+
+    /* Maneuver Banner */
+    .maneuver-banner {
+      background: rgba(15, 23, 42, 0.96);
+      backdrop-filter: blur(10px);
+      border-radius: 18px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      border-left: 6px solid #38bdf8;
+      display: none;
+    }
+    .maneuver-banner.active { display: flex; }
+
+    .arrow-icon {
+      font-size: 38px;
+      color: #38bdf8;
+      line-height: 1;
+      font-weight: 900;
+    }
+    .maneuver-info h2 {
+      font-size: 16px;
+      color: #38bdf8;
+      font-weight: 800;
+    }
+    .maneuver-info p {
+      font-size: 14px;
+      font-weight: 600;
+      color: #f8fafc;
+    }
+
+    /* Right HUD */
+    .right-hud {
+      position: absolute;
+      right: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: center;
+      z-index: 12;
+    }
+
+    .hud-box {
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(6px);
+      border-radius: 16px;
+      padding: 8px 10px;
+      text-align: center;
+      border: 1px solid rgba(255,255,255,0.1);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+
+    .speed-number {
+      font-size: 26px;
+      font-weight: 900;
+      color: #38bdf8;
+      line-height: 1;
+    }
+    .speed-unit {
+      font-size: 10px;
+      color: #94a3b8;
+      font-weight: 700;
+    }
+
+    .hud-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: rgba(30, 41, 59, 0.95);
+      border: 1px solid rgba(255,255,255,0.15);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      font-size: 18px;
+    }
+
+    /* Bottom Widgets */
+    .bottom-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* WhatsApp Location Peek Card */
+    .wa-card {
+      background: rgba(6, 78, 59, 0.96);
+      border-radius: 16px;
+      padding: 12px 14px;
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+    .wa-card.visible { display: flex; }
+
+    .wa-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .wa-link {
+      font-size: 12px;
+      color: #a7f3d0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .wa-btn {
+      background: #10b981;
+      color: #000;
+      border: none;
+      padding: 8px;
+      border-radius: 8px;
+      font-weight: 800;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Spotify Glove-friendly Bar */
+    .spotify-bar {
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .song-details {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      max-width: 160px;
+    }
+    .song-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .song-artist {
+      font-size: 11px;
+      color: #1db954;
+      font-weight: 600;
+    }
+
+    .spotify-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .spot-btn {
+      width: 44px;
+      height: 44px;
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+    }
+    .spot-btn.play {
+      background: #1db954;
+      color: #000;
+      font-size: 20px;
+    }
+
+    /* Test Simulation Controls Overlay (External top) */
+    .sim-bar {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 100;
+      display: flex;
+      gap: 8px;
+    }
+    .sim-pill {
+      background: rgba(15, 23, 42, 0.9);
+      color: #38bdf8;
+      border: 1px solid #38bdf8;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .sim-pill:hover { background: #38bdf8; color: #000; }
+  </style>
+</head>
+<body>
+
+  <!-- Simulation Control Toolbar -->
+  <div class="sim-bar">
+    <div class="sim-pill" onclick="simulateWhatsAppShare()">📲 Simulate WhatsApp Location</div>
+    <div class="sim-pill" onclick="toggleRideSimulation()">🏍️ Start / Stop Motorcycle Ride</div>
+    <div class="sim-pill" onclick="toggleTheme()">🌓 Dark / Light Mode</div>
+  </div>
+
+  <div class="phone-container">
+    <!-- Map Surface -->
+    <div id="map"></div>
+
+    <!-- UI Overlay Layer -->
+    <div class="ui-layer">
+      <!-- Top Section -->
+      <div class="top-bar interactive">
+        <div class="search-box">
+          <span>🔍</span>
+          <input type="text" id="searchInput" placeholder="Search petrol pump, dhaba, mechanic..." oninput="handleSearch(this.value)">
+        </div>
+
+        <div class="chips-row">
+          <div class="chip active" onclick="filterPoi(this, 'all')">All POIs</div>
+          <div class="chip" onclick="filterPoi(this, 'petrol')">⛽ Petrol (HP / Indian Oil)</div>
+          <div class="chip" onclick="filterPoi(this, 'food')">🍛 Dhaba / Highway Food</div>
+          <div class="chip" onclick="filterPoi(this, 'mechanic')">🔧 Puncture / Repair</div>
+        </div>
+
+        <!-- Active Turn Maneuver Banner -->
+        <div class="maneuver-banner" id="maneuverBanner">
+          <div class="arrow-icon" id="maneuverArrow">↰</div>
+          <div class="maneuver-info">
+            <h2 id="maneuverDist">In 350 m</h2>
+            <p id="maneuverText">Turn left onto NH 19 (Dankuni Bypass)</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right HUD Panel -->
+      <div class="right-hud interactive">
+        <div class="hud-box">
+          <div class="speed-number" id="speedDisplay">0</div>
+          <div class="speed-unit">KM/H</div>
+        </div>
+
+        <div class="hud-box" style="font-size:12px; font-weight:bold; color:#10b981;">
+          🔋 <span id="battDisplay">78%</span>
+        </div>
+
+        <div class="hud-btn" onclick="toggleTheme()" title="Toggle Dark/Light">🌓</div>
+      </div>
+
+      <!-- Bottom Panel: WhatsApp & Spotify -->
+      <div class="bottom-panel interactive">
+        <!-- WhatsApp Peek Card -->
+        <div class="wa-card" id="waCard">
+          <div class="wa-header">
+            <span>📍 WhatsApp: Ravi Bikers Group</span>
+            <span style="cursor:pointer;" onclick="dismissWA()">✕</span>
+          </div>
+          <div class="wa-link">https://maps.app.goo.gl/kolaghat-highway-dhaba</div>
+          <button class="wa-btn" onclick="navigateWhatsAppLoc()">
+            🧭 Reroute & Ride to This Location
+          </button>
+        </div>
+
+        <!-- Spotify Glove-friendly Bar -->
+        <div class="spotify-bar">
+          <div class="song-details">
+            <span class="song-title" id="songTitle">Highway Star</span>
+            <span class="song-artist" id="songArtist">Deep Purple</span>
+          </div>
+          <div class="spotify-controls">
+            <button class="spot-btn" onclick="prevSong()">⏮</button>
+            <button class="spot-btn play" id="playBtn" onclick="togglePlay()">▶</button>
+            <button class="spot-btn" onclick="nextSong()">⏭</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Initialize MapLibre with OpenFreeMap vector tiles (free, no API key)
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: 'https://tiles.openfreemap.org/styles/liberty',
+      center: [88.3639, 22.5726], // Kolkata, West Bengal
+      zoom: 13,
+      pitch: 45,
+      bearing: -10
+    });
+
+    // West Bengal Motorcycle Route Simulation Path
+    const routeCoords = [
+      [88.3639, 22.5726],
+      [88.3512, 22.5923],
+      [88.3345, 22.6184],
+      [88.3092, 22.6512],
+      [88.2912, 22.6845] // Dankuni Toll Plaza
+    ];
+
+    let bikeMarker = null;
+    let isRiding = false;
+    let rideStep = 0;
+    let rideInterval = null;
+    let isDark = true;
+
+    // POI Sample Data for West Bengal
+    const pois = [
+      { name: "Indian Oil Swagat Care (NH19)", cat: "petrol", coords: [88.2912, 22.6845], icon: "⛽" },
+      { name: "Bharat Petroleum Kona", cat: "petrol", coords: [88.2984, 22.5856], icon: "⛽" },
+      { name: "Sher-e-Punjab Dhaba", cat: "food", coords: [88.3245, 22.6104], icon: "🍛" },
+      { name: "Royal Enfield Workshop", cat: "mechanic", coords: [88.3541, 22.5612], icon: "🔧" }
+    ];
+
+    const poiMarkers = [];
+
+    map.on('load', () => {
+      // Add route polyline
+      map.addSource('route', {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates: routeCoords }
+        }
+      });
+
+      map.addLayer({
+        id: 'route-line',
+        type: 'line',
+        source: 'route',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-color': '#0284c7',
+          'line-width': 7,
+          'line-opacity': 0.85
+        }
+      });
+
+      // Add motorcycle user marker
+      const el = document.createElement('div');
+      el.innerHTML = '🏍️';
+      el.style.fontSize = '32px';
+      el.style.transform = 'translate(-50%, -50%)';
+
+      bikeMarker = new maplibregl.Marker({ element: el })
+        .setLngLat(routeCoords[0])
+        .addTo(map);
+
+      // Render POIs
+      renderPois('all');
+    });
+
+    function renderPois(filter) {
+      poiMarkers.forEach(m => m.remove());
+      poiMarkers.length = 0;
+
+      pois.forEach(p => {
+        if (filter !== 'all' && p.cat !== filter) return;
+        const pEl = document.createElement('div');
+        pEl.innerHTML = `<div style="background:#1e293b; border:2px solid #38bdf8; border-radius:50%; width:32px; height:32px; display:flex; align-items:center; justify-content:center; font-size:16px; cursor:pointer;" title="${p.name}">${p.icon}</div>`;
+        pEl.onclick = () => {
+          alert(`Selected: ${p.name}\nCalculating motorcycle route...`);
+          startRide();
+        };
+
+        const m = new maplibregl.Marker({ element: pEl })
+          .setLngLat(p.coords)
+          .addTo(map);
+        poiMarkers.push(m);
+      });
+    }
+
+    function filterPoi(btn, cat) {
+      document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      renderPois(cat);
+    }
+
+    // Motorcycle Ride Simulation
+    function toggleRideSimulation() {
+      if (isRiding) stopRide();
+      else startRide();
+    }
+
+    function startRide() {
+      isRiding = true;
+      document.getElementById('maneuverBanner').classList.add('active');
+      speak("Starting ride. Head north on state highway, then turn left onto NH 19.");
+
+      rideInterval = setInterval(() => {
+        if (rideStep >= routeCoords.length - 1) {
+          rideStep = 0;
+        } else {
+          rideStep++;
+        }
+
+        const nextPoint = routeCoords[rideStep];
+        bikeMarker.setLngLat(nextPoint);
+        map.easeTo({ center: nextPoint, duration: 1000 });
+
+        // Update Speedometer & maneuvers
+        const speed = Math.floor(58 + Math.random() * 26);
+        document.getElementById('speedDisplay').innerText = speed;
+
+        if (rideStep === 2) {
+          document.getElementById('maneuverArrow').innerText = '↰';
+          document.getElementById('maneuverDist').innerText = 'In 150 m';
+          document.getElementById('maneuverText').innerText = 'Turn left onto NH 19';
+          speak("In 150 meters, turn left onto NH 19");
+        } else if (rideStep === 4) {
+          document.getElementById('maneuverArrow').innerText = '🏁';
+          document.getElementById('maneuverDist').innerText = 'Arrived';
+          document.getElementById('maneuverText').innerText = 'Dankuni Fuel Plaza reached';
+          speak("You have arrived at your destination.");
+        }
+      }, 2500);
+    }
+
+    function stopRide() {
+      isRiding = false;
+      clearInterval(rideInterval);
+      document.getElementById('speedDisplay').innerText = '0';
+      document.getElementById('maneuverBanner').classList.remove('active');
+    }
+
+    // TTS Speech Synthesis Voice Guidance
+    function speak(text) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.rate = 1.05;
+        window.speechSynthesis.speak(utter);
+      }
+    }
+
+    // WhatsApp Simulation
+    function simulateWhatsAppShare() {
+      document.getElementById('waCard').classList.add('visible');
+      speak("New WhatsApp location received from Ravi.");
+    }
+
+    function dismissWA() {
+      document.getElementById('waCard').classList.remove('visible');
+    }
+
+    function navigateWhatsAppLoc() {
+      dismissWA();
+      speak("Recalculating motorcycle route to Ravi's location at Kolaghat Dhaba.");
+      startRide();
+    }
+
+    // Spotify Simulation
+    const playlist = [
+      { title: "Highway Star", artist: "Deep Purple" },
+      { title: "Born to be Wild", artist: "Steppenwolf" },
+      { title: "Kickstart My Heart", artist: "Mötley Crüe" }
+    ];
+    let songIdx = 0;
+    let isPlaying = false;
+
+    function togglePlay() {
+      isPlaying = !isPlaying;
+      document.getElementById('playBtn').innerText = isPlaying ? '⏸' : '▶';
+    }
+    function nextSong() {
+      songIdx = (songIdx + 1) % playlist.length;
+      updateSong();
+    }
+    function prevSong() {
+      songIdx = (songIdx - 1 + playlist.length) % playlist.length;
+      updateSong();
+    }
+    function updateSong() {
+      document.getElementById('songTitle').innerText = playlist[songIdx].title;
+      document.getElementById('songArtist').innerText = playlist[songIdx].artist;
+    }
+
+    // Theme Toggle
+    function toggleTheme() {
+      isDark = !isDark;
+      map.setStyle(isDark ? 'https://tiles.openfreemap.org/styles/bright' : 'https://tiles.openfreemap.org/styles/liberty');
+    }
+  </script>
+</body>
+</html>
