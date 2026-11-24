@@ -3,6 +3,7 @@ package com.motonav.data.repository
 import android.content.Context
 import android.location.Geocoder
 import android.util.Log
+import com.motonav.data.ApiConfig
 import com.motonav.data.local.PreferencesStore
 import com.motonav.data.local.db.PoiDao
 import com.motonav.data.local.db.entities.PoiCategory
@@ -112,12 +113,11 @@ class PoiRepository @Inject constructor(
 
         val results = mutableListOf<PoiEntity>()
 
-        // 1. Check if user configured a MapMyIndia (Mappls) API key in Settings
-        val mapplsApiKey = preferencesStore.mapplsApiKeyFlow.first()
-        if (mapplsApiKey.isNotBlank()) {
-            val mapplsResults = searchMappls(trimmed, userLocation, mapplsApiKey, limit)
-            if (mapplsResults.isNotEmpty()) {
-                results.addAll(mapplsResults)
+        // 1. If Mapbox public access token is configured in ApiConfig.kt, query Mapbox Places API
+        if (ApiConfig.isMapboxConfigured) {
+            val mapboxResults = searchMapbox(trimmed, userLocation, ApiConfig.MAPBOX_ACCESS_TOKEN, limit)
+            if (mapboxResults.isNotEmpty()) {
+                results.addAll(mapboxResults)
             }
         }
 
@@ -392,66 +392,65 @@ class PoiRepository @Inject constructor(
     }
 
     /**
-     * Optional Google Places API Text Search when API Key is provided by user in Settings.
+     * Mapbox Places Geocoding search when public access token is configured in ApiConfig.kt.
      */
-    private fun searchMappls(
+    private fun searchMapbox(
         query: String,
         userLocation: LatLng?,
-        apiKey: String,
+        token: String,
         limit: Int
     ): List<PoiEntity> {
         val list = mutableListOf<PoiEntity>()
         try {
             val encodedQuery = URLEncoder.encode(query, "UTF-8")
-            val urlStr = if (userLocation != null) {
-                "https://atlas.mappls.com/api/places/search/json?query=$encodedQuery&location=${userLocation.latitude},${userLocation.longitude}"
-            } else {
-                "https://atlas.mappls.com/api/places/search/json?query=$encodedQuery"
-            }
+            val proximity = if (userLocation != null) "&proximity=${userLocation.longitude},${userLocation.latitude}" else ""
+            val urlStr = "https://api.mapbox.com/geocoding/v5/mapbox.places/$encodedQuery.json?access_token=$token$proximity&country=in&limit=$limit"
 
             val conn = URL(urlStr).openConnection() as HttpURLConnection
             conn.connectTimeout = 4000
             conn.readTimeout = 4000
-            conn.setRequestProperty("Authorization", "Bearer $apiKey")
             conn.setRequestProperty("User-Agent", "MotoNav/1.0 (Android Motorcycle Navigation)")
 
             if (conn.responseCode == 200) {
                 val body = conn.inputStream.bufferedReader().use { it.readText() }
                 val json = JSONObject(body)
-                val results = json.optJSONArray("suggestedLocations") ?: return emptyList()
+                val features = json.optJSONArray("features") ?: return emptyList()
 
-                for (i in 0 until minOf(results.length(), limit)) {
-                    val place = results.getJSONObject(i)
-                    val name = place.optString("placeName", "Location")
-                    val address = place.optString("placeAddress", "")
-                    val lat = place.optDouble("latitude", 0.0)
-                    val lng = place.optDouble("longitude", 0.0)
-                    if (lat == 0.0 && lng == 0.0) continue
+                for (i in 0 until minOf(features.length(), limit)) {
+                    val feature = features.getJSONObject(i)
+                    val text = feature.optString("text", "Place")
+                    val placeName = feature.optString("place_name", text)
+                    val center = feature.optJSONArray("center") ?: continue
+                    val lng = center.getDouble(0)
+                    val lat = center.getDouble(1)
 
-                    val type = place.optString("type", "").lowercase()
+                    val properties = feature.optJSONObject("properties")
+                    val categoryStr = properties?.optString("category", "")?.lowercase() ?: ""
+
                     val category = when {
-                        type.contains("fuel") || type.contains("petrol") -> PoiCategory.PETROL.name
-                        type.contains("restaurant") || type.contains("food") || type.contains("dhaba") -> PoiCategory.DHABA.name
-                        type.contains("repair") || type.contains("workshop") || type.contains("mechanic") -> PoiCategory.MECHANIC.name
+                        categoryStr.contains("gas") || categoryStr.contains("fuel") || text.lowercase().contains("petrol") -> PoiCategory.PETROL.name
+                        categoryStr.contains("restaurant") || categoryStr.contains("food") || text.lowercase().contains("dhaba") -> PoiCategory.DHABA.name
+                        categoryStr.contains("repair") || categoryStr.contains("auto") || text.lowercase().contains("mechanic") -> PoiCategory.MECHANIC.name
+                        categoryStr.contains("viewpoint") || categoryStr.contains("attraction") -> PoiCategory.VIEWPOINT.name
                         else -> PoiCategory.CITY.name
                     }
 
                     list.add(
                         PoiEntity(
                             osmId = System.currentTimeMillis() + i,
-                            name = name,
+                            name = text,
                             category = category,
                             latitude = lat,
                             longitude = lng,
-                            brand = "Mappls India",
-                            address = address,
-                            regionId = "mappls"
+                            brand = "Mapbox",
+                            address = placeName,
+                            regionId = "mapbox"
                         )
                     )
                 }
             }
         } catch (e: Exception) {
-            Log.d(TAG, "Mappls query failed: ${e.message}")
+            Log.d(TAG, "Mapbox geocoding query failed: ${e.message}")
         }
         return list
     }

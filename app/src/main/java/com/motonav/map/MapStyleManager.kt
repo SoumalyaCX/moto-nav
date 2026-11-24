@@ -2,6 +2,7 @@ package com.motonav.map
 
 import android.content.Context
 import com.motonav.R
+import com.motonav.data.ApiConfig
 import com.motonav.data.local.MapFileManager
 import com.motonav.data.local.PreferencesStore
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -71,8 +72,16 @@ class MapStyleManager @Inject constructor(
             // Load offline vector style with local PMTiles source
             buildLocalPmtilesStyle(pmtilesFile, isDarkTheme)
         } else if (!forceOffline) {
-            // Fallback to free OpenFreeMap without API keys
-            if (isDarkTheme) ONLINE_STYLE_DARK else ONLINE_STYLE_LIBERTY
+            if (ApiConfig.isMapboxConfigured) {
+                if (isDarkTheme) {
+                    "https://api.mapbox.com/styles/v1/mapbox/dark-v11?access_token=${ApiConfig.MAPBOX_ACCESS_TOKEN}"
+                } else {
+                    "https://api.mapbox.com/styles/v1/mapbox/streets-v12?access_token=${ApiConfig.MAPBOX_ACCESS_TOKEN}"
+                }
+            } else {
+                // Fallback to free OpenFreeMap without API keys
+                if (isDarkTheme) ONLINE_STYLE_DARK else ONLINE_STYLE_LIBERTY
+            }
         } else {
             // Offline fallback template or OSM raster
             OSM_RASTER_FALLBACK

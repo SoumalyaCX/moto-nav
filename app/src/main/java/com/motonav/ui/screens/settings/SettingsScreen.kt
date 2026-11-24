@@ -25,8 +25,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Switch
@@ -43,7 +41,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -69,7 +66,6 @@ fun SettingsScreen(
     val avoidTolls by preferencesStore.avoidTollsFlow.collectAsState(initial = false)
     val batteryRideMode by preferencesStore.isBatteryRideModeEnabledFlow.collectAsState(initial = true)
     val bluetoothDucking by preferencesStore.isBluetoothDuckingEnabledFlow.collectAsState(initial = true)
-    val mapplsApiKey by preferencesStore.mapplsApiKeyFlow.collectAsState(initial = "")
 
     val isWaPermissionGranted = WANotificationService.isNotificationAccessGranted(context)
 
@@ -249,50 +245,44 @@ fun SettingsScreen(
 
             // Places & Business Search Provider
             item {
-                SettingsCard(title = "🔍 Places & Search Data Provider") {
+                SettingsCard(title = "🔍 Places & POI Search Engine") {
                     Column(modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            text = "Default: Photon + Overpass OSM",
-                            color = Color(0xFF10B981),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Free, live, keyless search for Indian shops, petrol pumps, mechanics, and dhabas.",
-                            color = Color.LightGray,
-                            fontSize = 12.sp
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "MapMyIndia (Mappls) REST API Key (Optional)",
-                            color = Color.White,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Package: com.motonav",
-                            color = Color(0xFF38BDF8),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        var tempKey by remember(mapplsApiKey) { mutableStateOf(mapplsApiKey) }
-                        OutlinedTextField(
-                            value = tempKey,
-                            onValueChange = {
-                                tempKey = it
-                                scope.launch { preferencesStore.setMapplsApiKey(it) }
-                            },
-                            placeholder = { Text("Paste MapMyIndia REST Key...", color = Color.Gray, fontSize = 12.sp) },
-                            singleLine = true,
+                        Row(
                             modifier = Modifier.fillMaxWidth(),
-                            textStyle = TextStyle(color = Color.White, fontSize = 13.sp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF38BDF8),
-                                unfocusedBorderColor = Color(0x3338BDF8)
-                            )
-                        )
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                val isMapbox = com.motonav.data.ApiConfig.isMapboxConfigured
+                                Text(
+                                    text = if (isMapbox) "Mapbox Enhanced Search" else "Photon + Overpass OSM",
+                                    color = Color(0xFF10B981),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (isMapbox)
+                                        "Embedded Mapbox key active in code."
+                                    else
+                                        "100% Free & Keyless live search for Indian shops, petrol pumps, mechanics, and dhabas.",
+                                    color = Color.LightGray,
+                                    fontSize = 12.sp
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0xFF0F172A))
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = "ACTIVE",
+                                    color = Color(0xFF38BDF8),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                            }
+                        }
                     }
                 }
             }
