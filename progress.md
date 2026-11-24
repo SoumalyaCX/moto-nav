@@ -111,6 +111,19 @@
   - Validated geo distance calculations, regex WhatsApp location extraction, and GraphHopper motorcycle JSON weighting
   - Committed clean codebase into git repository
 
+### Phase 7: Real MapLibre Viewport & Hybrid Search Integration
+- **Status:** complete
+- **Started:** 2026-11-24 14:02
+- **Completed:** 2026-11-24 14:08
+- Actions taken:
+  - Initialized `MapLibre.getInstance(this)` in `MotoNavApp.kt`
+  - Replaced canvas placeholder with real interactive MapLibre `MapView` embedded via `AndroidView` with lifecycle observer
+  - Implemented automatic camera positioning, destination pinning, and motorcycle route line rendering
+  - Seeded over 35 major West Bengal towns, cities, motorcycle twisty routes (Ayodhya Hills, Purulia, Kolaghat, Digha, Darjeeling, etc.) into SQLite
+  - Implemented hybrid geocoding in `PoiRepository.kt` combining local database with Android native `Geocoder`
+  - Created interactive floating search results dropdown under the search bar with place emojis, address, and distance in km
+  - Updated `PoiChips.kt` with "Towns / Cities" filter chip
+
 ## Test Results
 | Test | Input | Expected | Actual | Status |
 |------|-------|----------|--------|--------|
