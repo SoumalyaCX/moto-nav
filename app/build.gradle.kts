@@ -17,6 +17,7 @@ android {
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        multiDexEnabled = true
         vectorDrawables {
             useSupportLibrary = true
         }
@@ -104,10 +105,6 @@ dependencies {
 
     // MapLibre Native SDK (Free offline vector maps)
     implementation(libs.maplibre.android.sdk)
-
-    // GraphHopper core (Embedded offline routing)
-    implementation(libs.graphhopper.core)
-    implementation(libs.graphhopper.reader.osm)
 
     // Coroutines & Serialization
     implementation(libs.kotlinx.coroutines.android)

@@ -53,7 +53,6 @@ maplibre-android-sdk = { group = "org.maplibre.gl", name = "android-sdk", versio
 
 # GraphHopper Core (embedded offline routing)
 graphhopper-core = { group = "com.graphhopper", name = "graphhopper-core", version.ref = "graphhopper" }
-graphhopper-reader-osm = { group = "com.graphhopper", name = "graphhopper-reader-osm", version.ref = "graphhopper" }
 
 # Coroutines
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
