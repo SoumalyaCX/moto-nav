@@ -25,6 +25,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Switch
@@ -33,11 +35,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -62,6 +68,7 @@ fun SettingsScreen(
     val avoidTolls by preferencesStore.avoidTollsFlow.collectAsState(initial = false)
     val batteryRideMode by preferencesStore.isBatteryRideModeEnabledFlow.collectAsState(initial = true)
     val bluetoothDucking by preferencesStore.isBluetoothDuckingEnabledFlow.collectAsState(initial = true)
+    val googleApiKey by preferencesStore.googlePlacesApiKeyFlow.collectAsState(initial = "")
 
     val isWaPermissionGranted = WANotificationService.isNotificationAccessGranted(context)
 
@@ -202,6 +209,49 @@ fun SettingsScreen(
                             subtitle = "Routes via secondary state roads & twisty corridors",
                             checked = avoidHighways,
                             onCheckedChange = { scope.launch { preferencesStore.setAvoidHighways(it) } }
+                        )
+                    }
+                }
+            }
+
+            // Places & Business Search Provider
+            item {
+                SettingsCard(title = "🔍 Places & Search Data Provider") {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = "Default: Photon + Overpass OSM",
+                            color = Color(0xFF10B981),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Free, live, keyless search for Indian shops, petrol pumps, mechanics, and dhabas.",
+                            color = Color.LightGray,
+                            fontSize = 12.sp
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = "Google Places API Key (Optional)",
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        var tempKey by remember(googleApiKey) { mutableStateOf(googleApiKey) }
+                        OutlinedTextField(
+                            value = tempKey,
+                            onValueChange = {
+                                tempKey = it
+                                scope.launch { preferencesStore.setGooglePlacesApiKey(it) }
+                            },
+                            placeholder = { Text("Paste AIzaSy... to enable Google Places", color = Color.Gray, fontSize = 12.sp) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            textStyle = TextStyle(color = Color.White, fontSize = 13.sp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF38BDF8),
+                                unfocusedBorderColor = Color(0x3338BDF8)
+                            )
                         )
                     }
                 }

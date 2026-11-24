@@ -35,6 +35,11 @@ class PreferencesStore @Inject constructor(
         private val KEY_OFFLINE_ONLY = booleanPreferencesKey("offline_only_mode")
         private val KEY_AVOID_HIGHWAYS = booleanPreferencesKey("avoid_highways")
         private val KEY_AVOID_TOLLS = booleanPreferencesKey("avoid_tolls")
+        private val KEY_GOOGLE_PLACES_API_KEY = stringPreferencesKey("google_places_api_key")
+    }
+
+    val googlePlacesApiKeyFlow: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_GOOGLE_PLACES_API_KEY] ?: ""
     }
 
     val darkModePreferenceFlow: Flow<DarkModePreference> = context.dataStore.data.map { prefs ->
@@ -107,6 +112,12 @@ class PreferencesStore @Inject constructor(
     suspend fun setAvoidHighways(avoid: Boolean) {
         context.dataStore.edit { prefs ->
             prefs[KEY_AVOID_HIGHWAYS] = avoid
+        }
+    }
+
+    suspend fun setGooglePlacesApiKey(key: String) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_GOOGLE_PLACES_API_KEY] = key.trim()
         }
     }
 

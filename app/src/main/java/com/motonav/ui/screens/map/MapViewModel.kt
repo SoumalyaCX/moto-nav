@@ -115,7 +115,7 @@ class MapViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(searchQuery = query)
         if (query.isNotBlank()) {
             viewModelScope.launch {
-                val results = poiRepository.searchPois(query)
+                val results = poiRepository.searchPois(query, _uiState.value.userLocation)
                 _uiState.value = _uiState.value.copy(nearbyPois = results)
             }
         } else {
