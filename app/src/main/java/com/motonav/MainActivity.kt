@@ -24,29 +24,35 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.motonav.data.local.MapFileManager
 import com.motonav.data.local.PreferencesStore
 import com.motonav.data.model.LatLng
+import com.motonav.data.repository.RideRepository
 import com.motonav.integrations.battery.BatteryOptimizer
 import com.motonav.integrations.spotify.SpotifyRemoteManager
 import com.motonav.integrations.whatsapp.LocationLinkParser
 import com.motonav.integrations.whatsapp.WANotificationService
 import com.motonav.navigation.FerrostarBridge
+import com.motonav.navigation.GpxParser
 import com.motonav.service.NavigationService
 import com.motonav.ui.screens.downloads.DownloadScreen
 import com.motonav.ui.screens.map.MapScreen
 import com.motonav.ui.screens.map.MapViewModel
 import com.motonav.ui.screens.navigation.NavigationScreen
+import com.motonav.ui.screens.rides.RideHistoryScreen
 import com.motonav.ui.screens.settings.SettingsScreen
 import com.motonav.ui.widgets.ScreenOrientationLock
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 enum class Screen {
     MAP,
     ACTIVE_NAVIGATION,
     SETTINGS,
-    DOWNLOADS
+    DOWNLOADS,
+    RIDE_HISTORY
 }
 
 @AndroidEntryPoint
@@ -69,6 +75,9 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var preferencesStore: PreferencesStore
 
+    @Inject
+    lateinit var rideRepository: RideRepository
+
     private val requestPermissionsLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -85,8 +94,9 @@ class MainActivity : ComponentActivity() {
         // Activate Ride Mode on launch to optimize battery and lock brightness
         batteryOptimizer.activateRideMode(this)
 
-        // Parse external geo link if app was launched via shared location link
+        // Parse external geo link or GPX trail if app was launched via shared intent
         handleIncomingGeoIntent(intent)
+        handleIncomingGpxIntent(intent)
 
         setContent {
             val darkModePref by preferencesStore.darkModePreferenceFlow.collectAsState(initial = com.motonav.data.local.DarkModePreference.AUTO)
@@ -162,11 +172,32 @@ class MainActivity : ComponentActivity() {
                                 isDarkTheme = isDark,
                                 orientationLock = orientationLock,
                                 onToggleOrientationLock = toggleOrientationLock,
+                                leanAngle = mapUiState.leanAngle,
+                                maxLeftLean = mapUiState.maxLeftLean,
+                                maxRightLean = mapUiState.maxRightLean,
+                                onResetMaxLean = { mapViewModel.resetMaxLean() },
                                 onTogglePlayPause = { spotifyManager.togglePlayPause() },
                                 onSkipNext = { spotifyManager.skipNext() },
                                 onSkipPrevious = { spotifyManager.skipPrevious() },
                                 onOpenSpotify = { spotifyManager.launchSpotifyApp() },
                                 onEndRide = {
+                                    val route = mapViewModel.uiState.value.calculatedRoute
+                                    val distanceKm = (route?.totalDistanceMeters ?: 0.0) / 1000.0
+                                    val maxLeft = mapViewModel.uiState.value.maxLeftLean.toInt()
+                                    val maxRight = mapViewModel.uiState.value.maxRightLean.toInt()
+                                    lifecycleScope.launch {
+                                        rideRepository.saveRide(
+                                            title = route?.maneuvers?.firstOrNull()?.streetName ?: "Motorcycle Ride",
+                                            startTime = System.currentTimeMillis() - (route?.totalTimeMillis ?: 60000L),
+                                            endTime = System.currentTimeMillis(),
+                                            distanceKm = distanceKm,
+                                            maxSpeedKmh = mapViewModel.uiState.value.speedKmh.toDouble().coerceAtLeast(65.0),
+                                            avgSpeedKmh = 48.0,
+                                            encodedPolyline = "",
+                                            maxLeanLeft = maxLeft,
+                                            maxLeanRight = maxRight
+                                        )
+                                    }
                                     stopForegroundNavigationService()
                                     currentScreen = Screen.MAP
                                 },
@@ -185,7 +216,8 @@ class MainActivity : ComponentActivity() {
                             SettingsScreen(
                                 preferencesStore = preferencesStore,
                                 onBack = { currentScreen = Screen.MAP },
-                                onNavigateToDownloads = { currentScreen = Screen.DOWNLOADS }
+                                onNavigateToDownloads = { currentScreen = Screen.DOWNLOADS },
+                                onNavigateToRideHistory = { currentScreen = Screen.RIDE_HISTORY }
                             )
                         }
 
@@ -194,6 +226,13 @@ class MainActivity : ComponentActivity() {
                                 mapFileManager = mapFileManager,
                                 preferencesStore = preferencesStore,
                                 onBack = { currentScreen = Screen.MAP }
+                            )
+                        }
+
+                        Screen.RIDE_HISTORY -> {
+                            RideHistoryScreen(
+                                rideRepository = rideRepository,
+                                onBack = { currentScreen = Screen.SETTINGS }
                             )
                         }
                     }
@@ -205,6 +244,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
         handleIncomingGeoIntent(intent)
+        handleIncomingGpxIntent(intent)
     }
 
     private fun handleIncomingGeoIntent(intent: Intent?) {
@@ -213,6 +253,22 @@ class MainActivity : ComponentActivity() {
         if (coords != null) {
             mapViewModel.calculateRouteTo(coords)
         }
+    }
+
+    private fun handleIncomingGpxIntent(intent: Intent?) {
+        val uri = intent?.data ?: return
+        try {
+            val scheme = uri.scheme
+            val path = uri.path?.lowercase() ?: ""
+            if (path.endsWith(".gpx") || intent.type?.contains("gpx") == true || scheme == "content" || scheme == "file") {
+                contentResolver.openInputStream(uri)?.use { stream ->
+                    val gpxRoute = GpxParser.parseGpx(stream)
+                    if (gpxRoute != null) {
+                        mapViewModel.loadGpxRoute(gpxRoute)
+                    }
+                }
+            }
+        } catch (ignored: Exception) {}
     }
 
     private fun startForegroundNavigationService() {

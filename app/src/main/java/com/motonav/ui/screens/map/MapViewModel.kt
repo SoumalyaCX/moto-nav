@@ -18,14 +18,13 @@ import com.motonav.navigation.FerrostarBridge
 import com.motonav.navigation.GraphHopperEngine
 import com.motonav.navigation.LocationTracker
 import com.motonav.navigation.MotorcycleRoutingOptions
+import com.motonav.navigation.OrientationManager
 import com.motonav.navigation.RidingStyle
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -33,12 +32,17 @@ data class MapUiState(
     val userLocation: LatLng = LatLng(22.5726, 88.3639), // Default to Kolkata, WB
     val speedKmh: Float = 0f,
     val bearing: Float = 0f,
+    val leanAngle: Float = 0f,
+    val maxLeftLean: Float = 0f,
+    val maxRightLean: Float = 0f,
     val activeStyleJson: String = "",
     val nearbyPois: List<PoiEntity> = emptyList(),
     val selectedPoi: PoiEntity? = null,
     val selectedCategory: PoiCategory? = null,
     val searchQuery: String = "",
     val calculatedRoute: NavigationRoute? = null,
+    val availableRoutes: List<NavigationRoute> = emptyList(),
+    val selectedRouteFlavorIndex: Int = 0,
     val isCalculatingRoute: Boolean = false,
     val activeRegionId: String = "west_bengal",
     val isDarkTheme: Boolean = true
@@ -47,6 +51,7 @@ data class MapUiState(
 @HiltViewModel
 class MapViewModel @Inject constructor(
     private val locationTracker: LocationTracker,
+    private val orientationManager: OrientationManager,
     private val mapStyleManager: MapStyleManager,
     private val poiRepository: PoiRepository,
     private val graphHopperEngine: GraphHopperEngine,
@@ -64,13 +69,24 @@ class MapViewModel @Inject constructor(
     val batteryStatus = batteryOptimizer.batteryStatus
 
     init {
-        // Track live location
+        // Track live GPS location & speed
         viewModelScope.launch {
             locationTracker.getLocationUpdates().collect { loc ->
                 _uiState.value = _uiState.value.copy(
                     userLocation = loc.coordinate,
-                    speedKmh = loc.speedKmh,
-                    bearing = loc.bearing
+                    speedKmh = loc.speedKmh
+                )
+            }
+        }
+
+        // Track live motorcycle cockpit telemetry (Heading, lean angle, lateral G, max lean)
+        viewModelScope.launch {
+            orientationManager.getTelemetryUpdates().collect { telemetry ->
+                _uiState.value = _uiState.value.copy(
+                    bearing = telemetry.heading,
+                    leanAngle = telemetry.leanAngle,
+                    maxLeftLean = telemetry.maxLeftLean,
+                    maxRightLean = telemetry.maxRightLean
                 )
             }
         }
@@ -143,21 +159,47 @@ class MapViewModel @Inject constructor(
                 avoidTolls = avoidTolls
             )
 
-            val result = graphHopperEngine.calculateRoute(
+            val result = graphHopperEngine.calculateRouteOptions(
                 origin = _uiState.value.userLocation,
                 destination = destination,
                 options = options
             )
 
-            result.onSuccess { route ->
+            result.onSuccess { routes ->
                 _uiState.value = _uiState.value.copy(
-                    calculatedRoute = route,
+                    availableRoutes = routes,
+                    calculatedRoute = routes.firstOrNull(),
+                    selectedRouteFlavorIndex = 0,
                     isCalculatingRoute = false
                 )
             }.onFailure {
                 _uiState.value = _uiState.value.copy(isCalculatingRoute = false)
             }
         }
+    }
+
+    fun selectRouteFlavor(index: Int) {
+        val routes = _uiState.value.availableRoutes
+        if (index in routes.indices) {
+            _uiState.value = _uiState.value.copy(
+                selectedRouteFlavorIndex = index,
+                calculatedRoute = routes[index]
+            )
+        }
+    }
+
+    fun loadGpxRoute(route: NavigationRoute) {
+        _uiState.value = _uiState.value.copy(
+            availableRoutes = listOf(route),
+            calculatedRoute = route,
+            selectedRouteFlavorIndex = 0,
+            selectedPoi = null
+        )
+    }
+
+    fun resetMaxLean() {
+        orientationManager.resetMaxLean()
+        _uiState.value = _uiState.value.copy(maxLeftLean = 0f, maxRightLean = 0f)
     }
 
     fun startNavigation(onStarted: () -> Unit) {
@@ -167,7 +209,12 @@ class MapViewModel @Inject constructor(
     }
 
     fun clearRoute() {
-        _uiState.value = _uiState.value.copy(calculatedRoute = null, selectedPoi = null)
+        _uiState.value = _uiState.value.copy(
+            calculatedRoute = null,
+            availableRoutes = emptyList(),
+            selectedPoi = null,
+            selectedRouteFlavorIndex = 0
+        )
     }
 
     // Spotify controls

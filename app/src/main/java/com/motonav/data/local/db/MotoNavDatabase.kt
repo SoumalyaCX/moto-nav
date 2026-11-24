@@ -14,7 +14,7 @@ import kotlinx.coroutines.launch
 
 @Database(
     entities = [PoiEntity::class, RideEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class MotoNavDatabase : RoomDatabase() {
@@ -30,7 +30,9 @@ abstract class MotoNavDatabase : RoomDatabase() {
                 context.applicationContext,
                 MotoNavDatabase::class.java,
                 DATABASE_NAME
-            ).build()
+            )
+            .fallbackToDestructiveMigration()
+            .build()
         }
 
         suspend fun ensureInitialPoisSeeded(context: Context, database: MotoNavDatabase) {

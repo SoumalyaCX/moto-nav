@@ -16,5 +16,7 @@ data class RideEntity(
     val avgSpeedKmh: Double,
     val encodedPolyline: String,
     val startAddress: String? = null,
-    val endAddress: String? = null
+    val endAddress: String? = null,
+    val maxLeanLeft: Int = 0,
+    val maxLeanRight: Int = 0
 )

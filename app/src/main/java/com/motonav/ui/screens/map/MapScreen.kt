@@ -3,6 +3,8 @@ package com.motonav.ui.screens.map
 import android.content.res.Configuration
 import android.os.Bundle
 import android.graphics.Color as AndroidColor
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -74,8 +76,10 @@ import com.motonav.integrations.whatsapp.WALocationPeekWidget
 import com.motonav.map.MapStyleManager
 import com.motonav.ui.screens.map.components.MapSearchBar
 import com.motonav.ui.screens.map.components.PoiQuickFilters
+import com.motonav.navigation.GpxParser
 import com.motonav.ui.widgets.BatteryWidget
 import com.motonav.ui.widgets.CompassWidget
+import com.motonav.ui.widgets.LeanAngleWidget
 import com.motonav.ui.widgets.OrientationLockButton
 import com.motonav.ui.widgets.ScreenOrientationLock
 import com.motonav.ui.widgets.SpeedIndicator
@@ -107,6 +111,20 @@ fun MapScreen(
     var isFrontFacing by remember { mutableStateOf(false) }
     var isSearchExpanded by remember { mutableStateOf(false) }
     var isDrawerOpen by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val gpxLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+            try {
+                context.contentResolver.openInputStream(it)?.use { stream ->
+                    val gpxRoute = GpxParser.parseGpx(stream)
+                    if (gpxRoute != null) {
+                        viewModel.loadGpxRoute(gpxRoute)
+                    }
+                }
+            } catch (ignored: Exception) {}
+        }
+    }
 
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -279,6 +297,42 @@ fun MapScreen(
                                 )
                             }
                         }
+
+                        // 3-Flavor Route Multi-Option Selector (Fastest, Curvy, Scenic)
+                        if (uiState.availableRoutes.size > 1) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                uiState.availableRoutes.forEachIndexed { index, optRoute ->
+                                    val isSelected = index == uiState.selectedRouteFlavorIndex
+                                    val label = when (optRoute.ridingStyle) {
+                                        "FASTEST" -> "⚡ Fastest"
+                                        "CURVY" -> "🏍️ Curvy"
+                                        "SCENIC" -> "🌄 Scenic"
+                                        else -> optRoute.ridingStyle
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (isSelected) Color(0xFF0284C7) else Color(0xFF334155))
+                                            .clickable { viewModel.selectRouteFlavor(index) }
+                                            .padding(vertical = 6.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            color = if (isSelected) Color.White else Color.LightGray,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
                         Spacer(modifier = Modifier.height(8.dp))
                         Button(
                             onClick = { viewModel.startNavigation(onNavigateToActiveRide) },
@@ -435,10 +489,34 @@ fun MapScreen(
 
                         SpeedIndicator(speedKmh = uiState.speedKmh)
 
+                        LeanAngleWidget(
+                            leanAngle = uiState.leanAngle,
+                            maxLeft = uiState.maxLeftLean,
+                            maxRight = uiState.maxRightLean,
+                            onResetMax = { viewModel.resetMaxLean() }
+                        )
+
                         BatteryWidget(
                             percentage = batteryStatus.percentage,
                             isCharging = batteryStatus.isCharging
                         )
+
+                        // Import GPX Route
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xEE1E293B))
+                                .clickable { gpxLauncher.launch("*/*") },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "GPX",
+                                color = Color(0xFF38BDF8),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                        }
 
                         // Recenter on GPS location
                         Box(
@@ -496,10 +574,34 @@ fun MapScreen(
 
                 SpeedIndicator(speedKmh = uiState.speedKmh)
 
+                LeanAngleWidget(
+                    leanAngle = uiState.leanAngle,
+                    maxLeft = uiState.maxLeftLean,
+                    maxRight = uiState.maxRightLean,
+                    onResetMax = { viewModel.resetMaxLean() }
+                )
+
                 BatteryWidget(
                     percentage = batteryStatus.percentage,
                     isCharging = batteryStatus.isCharging
                 )
+
+                // Import GPX Route
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xEE1E293B))
+                        .clickable { gpxLauncher.launch("*/*") },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "GPX",
+                        color = Color(0xFF38BDF8),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                }
 
                 Box(
                     modifier = Modifier

@@ -63,6 +63,7 @@ import com.motonav.ui.screens.navigation.components.ETABar
 import com.motonav.ui.screens.navigation.components.ManeuverBanner
 import com.motonav.ui.widgets.BatteryWidget
 import com.motonav.ui.widgets.CompassWidget
+import com.motonav.ui.widgets.LeanAngleWidget
 import com.motonav.ui.widgets.OrientationLockButton
 import com.motonav.ui.widgets.ScreenOrientationLock
 import com.motonav.ui.widgets.SpeedIndicator
@@ -93,6 +94,10 @@ fun NavigationScreen(
     onEndRide: () -> Unit,
     onNavigateToNewLocation: (com.motonav.data.model.LatLng?) -> Unit,
     onDismissWAMessage: (String) -> Unit,
+    leanAngle: Float = 0f,
+    maxLeftLean: Float = 0f,
+    maxRightLean: Float = 0f,
+    onResetMaxLean: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val navStatus by ferrostarBridge.navigationState.collectAsState()
@@ -244,6 +249,13 @@ fun NavigationScreen(
 
                                 SpeedIndicator(speedKmh = status.currentSpeedKmh)
 
+                                LeanAngleWidget(
+                                    leanAngle = leanAngle,
+                                    maxLeft = maxLeftLean,
+                                    maxRight = maxRightLean,
+                                    onResetMax = onResetMaxLean
+                                )
+
                                 CompassWidget(
                                     bearing = status.currentBearing,
                                     isFrontFacing = isFrontFacing,
@@ -297,6 +309,12 @@ fun NavigationScreen(
                             onClick = { isFrontFacing = !isFrontFacing }
                         )
                         SpeedIndicator(speedKmh = status.currentSpeedKmh)
+                        LeanAngleWidget(
+                            leanAngle = leanAngle,
+                            maxLeft = maxLeftLean,
+                            maxRight = maxRightLean,
+                            onResetMax = onResetMaxLean
+                        )
                         BatteryWidget(percentage = batteryPercentage, isCharging = isCharging)
                     }
 

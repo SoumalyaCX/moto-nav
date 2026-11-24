@@ -196,3 +196,64 @@ fun BatteryWidget(
         )
     }
 }
+
+@Composable
+fun LeanAngleWidget(
+    leanAngle: Float,
+    maxLeft: Float = 0f,
+    maxRight: Float = 0f,
+    onResetMax: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    val absLean = kotlin.math.abs(leanAngle).toInt()
+    val isLeaningLeft = leanAngle < -1.5f
+    val isLeaningRight = leanAngle > 1.5f
+
+    val leanColor = when {
+        absLean >= 42 -> Color(0xFFEF4444) // Deep Red (knee dragging threshold)
+        absLean >= 32 -> Color(0xFFF59E0B) // Amber
+        absLean >= 20 -> Color(0xFF10B981) // Emerald
+        else -> Color(0xFF38BDF8)          // Sky Blue (cruising)
+    }
+
+    Box(
+        modifier = modifier
+            .size(width = 68.dp, height = 68.dp)
+            .background(
+                color = Color(0xEE0F172A),
+                shape = RoundedCornerShape(16.dp)
+            )
+            .clickable { onResetMax() }
+            .padding(4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = when {
+                    isLeaningLeft -> "⮜ $absLean°"
+                    isLeaningRight -> "$absLean° ⮞"
+                    else -> "0°"
+                },
+                color = leanColor,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Black
+            )
+            Text(
+                text = "LEAN",
+                color = Color.LightGray,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "L${maxLeft.toInt()}°|R${maxRight.toInt()}°",
+                color = Color(0xFF94A3B8),
+                fontSize = 8.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}

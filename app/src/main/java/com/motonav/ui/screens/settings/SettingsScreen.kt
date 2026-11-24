@@ -57,6 +57,7 @@ fun SettingsScreen(
     preferencesStore: PreferencesStore,
     onBack: () -> Unit,
     onNavigateToDownloads: () -> Unit,
+    onNavigateToRideHistory: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -135,6 +136,38 @@ fun SettingsScreen(
                             shape = RoundedCornerShape(10.dp)
                         ) {
                             Text("Open", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
+            // Ride Logbook & Telemetry History
+            item {
+                SettingsCard(title = "🏍️ Ride Logbook & Telemetry History") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Saved Rides & Cornering Stats",
+                                color = Color.White,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 14.sp
+                            )
+                            Text(
+                                text = "Review distance, top speed, and maximum cornering lean angles",
+                                color = Color.LightGray,
+                                fontSize = 12.sp
+                            )
+                        }
+                        Button(
+                            onClick = onNavigateToRideHistory,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("View", fontWeight = FontWeight.Bold)
                         }
                     }
                 }
