@@ -1,5 +1,6 @@
 package com.motonav.ui.screens.navigation
 
+import android.content.res.Configuration
 import android.os.Bundle
 import android.graphics.Color as AndroidColor
 import androidx.compose.animation.AnimatedVisibility
@@ -7,12 +8,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
@@ -26,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
@@ -46,6 +53,8 @@ import com.motonav.ui.screens.navigation.components.ETABar
 import com.motonav.ui.screens.navigation.components.ManeuverBanner
 import com.motonav.ui.widgets.BatteryWidget
 import com.motonav.ui.widgets.CompassWidget
+import com.motonav.ui.widgets.OrientationLockButton
+import com.motonav.ui.widgets.ScreenOrientationLock
 import com.motonav.ui.widgets.SpeedIndicator
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -65,6 +74,8 @@ fun NavigationScreen(
     isCharging: Boolean,
     styleJson: String = "",
     isDarkTheme: Boolean = true,
+    orientationLock: ScreenOrientationLock = ScreenOrientationLock.AUTO,
+    onToggleOrientationLock: () -> Unit = {},
     onTogglePlayPause: () -> Unit,
     onSkipNext: () -> Unit,
     onSkipPrevious: () -> Unit,
@@ -77,6 +88,9 @@ fun NavigationScreen(
     val navStatus by ferrostarBridge.navigationState.collectAsState()
     var isFrontFacing by remember { mutableStateOf(true) } // Motorcycle Front-Facing mode by default
 
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -84,82 +98,182 @@ fun NavigationScreen(
     ) {
         when (val status = navStatus) {
             is NavigationStatus.Navigating -> {
-                // 1. Fullscreen 3D Motorcycle Navigation Map Viewport
-                NavigationMapViewport(
-                    status = status,
-                    styleJson = styleJson,
-                    isDarkTheme = isDarkTheme,
-                    isFrontFacing = isFrontFacing,
-                    modifier = Modifier.fillMaxSize()
-                )
+                if (isLandscape) {
+                    // ==============================================================
+                    // LANDSCAPE MOTORCYCLE COCKPIT DUAL-PANE LAYOUT
+                    // ==============================================================
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        // Left Dashboard Panel (320dp width, full height)
+                        Column(
+                            modifier = Modifier
+                                .width(320.dp)
+                                .fillMaxHeight()
+                                .background(Color(0xF5020617))
+                                .verticalScroll(rememberScrollState())
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Turn Maneuver Header
+                            ManeuverBanner(
+                                maneuver = status.currentManeuver,
+                                distanceToManeuverMeters = status.distanceToNextManeuverMeters,
+                                isOffRoute = status.isOffRoute
+                            )
 
-                // 2. Top: Floating Turn-by-Turn Maneuver Instruction Banner
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(horizontal = 16.dp, vertical = 14.dp)
-                ) {
-                    ManeuverBanner(
-                        maneuver = status.currentManeuver,
-                        distanceToManeuverMeters = status.distanceToNextManeuverMeters,
-                        isOffRoute = status.isOffRoute
-                    )
-                }
+                            // Cockpit Indicators Row: Speedometer + Compass + Orientation Lock + Battery
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 2.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                SpeedIndicator(speedKmh = status.currentSpeedKmh)
+                                CompassWidget(
+                                    bearing = status.currentBearing,
+                                    isFrontFacing = isFrontFacing,
+                                    onClick = { isFrontFacing = !isFrontFacing }
+                                )
+                                OrientationLockButton(
+                                    lockMode = orientationLock,
+                                    onClick = onToggleOrientationLock
+                                )
+                                BatteryWidget(
+                                    percentage = batteryPercentage,
+                                    isCharging = isCharging
+                                )
+                            }
 
-                // 3. Right HUD: Compass, Speedometer, Battery Indicator
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .padding(end = 16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    CompassWidget(
-                        bearing = status.currentBearing,
-                        isFrontFacing = isFrontFacing,
-                        onClick = { isFrontFacing = !isFrontFacing }
-                    )
-                    SpeedIndicator(speedKmh = status.currentSpeedKmh)
-                    BatteryWidget(percentage = batteryPercentage, isCharging = isCharging)
-                }
+                            // WhatsApp Location Alert (if shared during ride)
+                            AnimatedVisibility(visible = waMessages.isNotEmpty()) {
+                                waMessages.firstOrNull()?.let { msg ->
+                                    WALocationPeekWidget(
+                                        message = msg,
+                                        onNavigateTo = { coords, _ ->
+                                            onNavigateToNewLocation(coords)
+                                            onDismissWAMessage(msg.id)
+                                        },
+                                        onDismiss = { onDismissWAMessage(msg.id) }
+                                    )
+                                }
+                            }
 
-                // 4. Bottom Controls: ETA Bar + WhatsApp Location Peek + Spotify Floating Bar
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // WhatsApp location peek if friend shares location during ride
-                    AnimatedVisibility(visible = waMessages.isNotEmpty()) {
-                        waMessages.firstOrNull()?.let { msg ->
-                            WALocationPeekWidget(
-                                message = msg,
-                                onNavigateTo = { coords, _ ->
-                                    onNavigateToNewLocation(coords)
-                                    onDismissWAMessage(msg.id)
-                                },
-                                onDismiss = { onDismissWAMessage(msg.id) }
+                            // ETA bar with compact End Ride button
+                            ETABar(
+                                remainingDistanceMeters = status.remainingDistanceTotalMeters,
+                                remainingTimeMillis = status.remainingTimeTotalMillis,
+                                onEndRide = onEndRide
+                            )
+
+                            // Spotify Glove-Friendly Player with album art
+                            MiniSpotifyPlayer(
+                                playerState = spotifyState,
+                                onTogglePlayPause = onTogglePlayPause,
+                                onSkipNext = onSkipNext,
+                                onSkipPrevious = onSkipPrevious,
+                                onOpenSpotify = onOpenSpotify
+                            )
+                        }
+
+                        // Right 3D Navigation Map Viewport (Takes remaining screen width & 100% height)
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                        ) {
+                            NavigationMapViewport(
+                                status = status,
+                                styleJson = styleJson,
+                                isDarkTheme = isDarkTheme,
+                                isFrontFacing = isFrontFacing,
+                                modifier = Modifier.fillMaxSize()
                             )
                         }
                     }
-
-                    // ETA Bar
-                    ETABar(
-                        remainingDistanceMeters = status.remainingDistanceTotalMeters,
-                        remainingTimeMillis = status.remainingTimeTotalMillis,
-                        onEndRide = onEndRide
+                } else {
+                    // ==============================================================
+                    // PORTRAIT MOTORCYCLE COCKPIT LAYOUT
+                    // ==============================================================
+                    // 1. Fullscreen 3D Motorcycle Navigation Map Viewport
+                    NavigationMapViewport(
+                        status = status,
+                        styleJson = styleJson,
+                        isDarkTheme = isDarkTheme,
+                        isFrontFacing = isFrontFacing,
+                        modifier = Modifier.fillMaxSize()
                     )
 
-                    // Spotify mini player (glove-friendly touch targets)
-                    MiniSpotifyPlayer(
-                        playerState = spotifyState,
-                        onTogglePlayPause = onTogglePlayPause,
-                        onSkipNext = onSkipNext,
-                        onSkipPrevious = onSkipPrevious,
-                        onOpenSpotify = onOpenSpotify
-                    )
+                    // 2. Top: Floating Turn-by-Turn Maneuver Instruction Banner
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(horizontal = 16.dp, vertical = 14.dp)
+                    ) {
+                        ManeuverBanner(
+                            maneuver = status.currentManeuver,
+                            distanceToManeuverMeters = status.distanceToNextManeuverMeters,
+                            isOffRoute = status.isOffRoute
+                        )
+                    }
+
+                    // 3. Right HUD: Orientation Lock, Compass, Speedometer, Battery Indicator
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OrientationLockButton(
+                            lockMode = orientationLock,
+                            onClick = onToggleOrientationLock
+                        )
+                        CompassWidget(
+                            bearing = status.currentBearing,
+                            isFrontFacing = isFrontFacing,
+                            onClick = { isFrontFacing = !isFrontFacing }
+                        )
+                        SpeedIndicator(speedKmh = status.currentSpeedKmh)
+                        BatteryWidget(percentage = batteryPercentage, isCharging = isCharging)
+                    }
+
+                    // 4. Bottom Controls: ETA Bar + WhatsApp Location Peek + Spotify Floating Bar
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        AnimatedVisibility(visible = waMessages.isNotEmpty()) {
+                            waMessages.firstOrNull()?.let { msg ->
+                                WALocationPeekWidget(
+                                    message = msg,
+                                    onNavigateTo = { coords, _ ->
+                                        onNavigateToNewLocation(coords)
+                                        onDismissWAMessage(msg.id)
+                                    },
+                                    onDismiss = { onDismissWAMessage(msg.id) }
+                                )
+                            }
+                        }
+
+                        // ETA Bar
+                        ETABar(
+                            remainingDistanceMeters = status.remainingDistanceTotalMeters,
+                            remainingTimeMillis = status.remainingTimeTotalMillis,
+                            onEndRide = onEndRide
+                        )
+
+                        // Spotify mini player (glove-friendly touch targets with album art)
+                        MiniSpotifyPlayer(
+                            playerState = spotifyState,
+                            onTogglePlayPause = onTogglePlayPause,
+                            onSkipNext = onSkipNext,
+                            onSkipPrevious = onSkipPrevious,
+                            onOpenSpotify = onOpenSpotify
+                        )
+                    }
                 }
             }
 

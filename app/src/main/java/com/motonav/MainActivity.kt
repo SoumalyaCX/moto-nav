@@ -2,6 +2,7 @@ package com.motonav
 
 import android.Manifest
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -14,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,6 +38,7 @@ import com.motonav.ui.screens.map.MapScreen
 import com.motonav.ui.screens.map.MapViewModel
 import com.motonav.ui.screens.navigation.NavigationScreen
 import com.motonav.ui.screens.settings.SettingsScreen
+import com.motonav.ui.widgets.ScreenOrientationLock
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -109,6 +112,24 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     var currentScreen by remember { mutableStateOf(Screen.MAP) }
+                    var orientationLock by remember { mutableStateOf(ScreenOrientationLock.AUTO) }
+
+                    val activity = this@MainActivity
+                    LaunchedEffect(orientationLock) {
+                        activity.requestedOrientation = when (orientationLock) {
+                            ScreenOrientationLock.AUTO -> ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+                            ScreenOrientationLock.LANDSCAPE -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                            ScreenOrientationLock.PORTRAIT -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                        }
+                    }
+
+                    val toggleOrientationLock = {
+                        orientationLock = when (orientationLock) {
+                            ScreenOrientationLock.AUTO -> ScreenOrientationLock.LANDSCAPE
+                            ScreenOrientationLock.LANDSCAPE -> ScreenOrientationLock.PORTRAIT
+                            ScreenOrientationLock.PORTRAIT -> ScreenOrientationLock.AUTO
+                        }
+                    }
 
                     val spotifyState by spotifyManager.playerState.collectAsState()
                     val waMessages by WANotificationService.receivedLocationMessages.collectAsState()
@@ -123,7 +144,9 @@ class MainActivity : ComponentActivity() {
                                     currentScreen = Screen.ACTIVE_NAVIGATION
                                 },
                                 onOpenSettings = { currentScreen = Screen.SETTINGS },
-                                onOpenDownloads = { currentScreen = Screen.DOWNLOADS }
+                                onOpenDownloads = { currentScreen = Screen.DOWNLOADS },
+                                orientationLock = orientationLock,
+                                onToggleOrientationLock = toggleOrientationLock
                             )
                         }
 
@@ -137,6 +160,8 @@ class MainActivity : ComponentActivity() {
                                 isCharging = batteryStatus.isCharging,
                                 styleJson = mapUiState.activeStyleJson,
                                 isDarkTheme = isDark,
+                                orientationLock = orientationLock,
+                                onToggleOrientationLock = toggleOrientationLock,
                                 onTogglePlayPause = { spotifyManager.togglePlayPause() },
                                 onSkipNext = { spotifyManager.skipNext() },
                                 onSkipPrevious = { spotifyManager.skipPrevious() },

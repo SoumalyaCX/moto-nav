@@ -22,6 +22,73 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+enum class ScreenOrientationLock {
+    AUTO,
+    LANDSCAPE,
+    PORTRAIT
+}
+
+@Composable
+fun OrientationLockButton(
+    lockMode: ScreenOrientationLock,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .size(52.dp)
+            .clip(CircleShape)
+            .background(Color(0xEE0F172A))
+            .clickable { onClick() }
+            .padding(4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            when (lockMode) {
+                ScreenOrientationLock.AUTO -> {
+                    Text(
+                        text = "🔄",
+                        fontSize = 15.sp
+                    )
+                    Text(
+                        text = "AUTO",
+                        color = Color(0xFF38BDF8), // Sky blue
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                }
+                ScreenOrientationLock.LANDSCAPE -> {
+                    Text(
+                        text = "🖥️",
+                        fontSize = 15.sp
+                    )
+                    Text(
+                        text = "LAND",
+                        color = Color(0xFF10B981), // Emerald green (locked)
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                }
+                ScreenOrientationLock.PORTRAIT -> {
+                    Text(
+                        text = "📱",
+                        fontSize = 15.sp
+                    )
+                    Text(
+                        text = "PORT",
+                        color = Color(0xFFF59E0B), // Amber (locked)
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun CompassWidget(
     bearing: Float,
