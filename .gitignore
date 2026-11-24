@@ -9,5 +9,5 @@
 .cxx
 local.properties
 app/build/
-output_regions/
-downloads/
+/output_regions/
+/downloads/
