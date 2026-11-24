@@ -124,7 +124,9 @@
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |
 |-----------|-------|---------|------------|
-|           |       | 1       |            |
+| 2026-11-24 13:10 | DNS failure on `maven.pkg.jetbrains.space` | 1 | Removed unreachable JetBrains Space maven repo from `settings.gradle.kts` |
+| 2026-11-24 13:22 | `Could not find graphhopper-reader-osm:9.1` (404) | 1 | Removed obsolete artifact merged into core since v3.0, used pure Kotlin routing |
+| 2026-11-24 13:30 | AAPT2 error: `mipmap/ic_launcher` not found | 1 | Created adaptive and standard launcher icon XMLs in `res/drawable` and `res/mipmap` |
 
 ## 5-Question Reboot Check
 | Question | Answer |
