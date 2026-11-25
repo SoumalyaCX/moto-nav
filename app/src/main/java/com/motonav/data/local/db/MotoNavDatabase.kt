@@ -643,6 +643,90 @@ abstract class MotoNavDatabase : RoomDatabase() {
                     address = "Sea Beach Road, Digha",
                     openingHours = "07:00 - 23:00",
                     regionId = "west_bengal"
+                ),
+                PoiEntity(
+                    osmId = 10056L,
+                    name = "Decathlon Salt Lake (Sector V)",
+                    category = PoiCategory.STORE.name,
+                    latitude = 22.5833,
+                    longitude = 88.4312,
+                    brand = "Decathlon Sports",
+                    address = "Block GP, Sector V, Bidhannagar, Kolkata 700091",
+                    openingHours = "10:00 - 21:30",
+                    phone = "+91 80 6902 4444",
+                    regionId = "west_bengal"
+                ),
+                PoiEntity(
+                    osmId = 10057L,
+                    name = "Decathlon Newtown",
+                    category = PoiCategory.STORE.name,
+                    latitude = 22.5958,
+                    longitude = 88.4712,
+                    brand = "Decathlon Sports",
+                    address = "Major Arterial Road, Action Area II, New Town, Kolkata 700156",
+                    openingHours = "10:00 - 22:00",
+                    phone = "+91 80 6902 4444",
+                    regionId = "west_bengal"
+                ),
+                PoiEntity(
+                    osmId = 10058L,
+                    name = "Decathlon Shakespeare Sarani",
+                    category = PoiCategory.STORE.name,
+                    latitude = 22.5447,
+                    longitude = 88.3582,
+                    brand = "Decathlon Sports",
+                    address = "Astha City Centre, Shakespeare Sarani, Kolkata 700017",
+                    openingHours = "10:00 - 21:00",
+                    phone = "+91 80 6902 4444",
+                    regionId = "west_bengal"
+                ),
+                PoiEntity(
+                    osmId = 10059L,
+                    name = "Decathlon Howrah (Kona Expressway)",
+                    category = PoiCategory.STORE.name,
+                    latitude = 22.5850,
+                    longitude = 88.2910,
+                    brand = "Decathlon Sports",
+                    address = "NH 16, Kona Expressway Junction, Howrah 711113",
+                    openingHours = "10:00 - 21:30",
+                    phone = "+91 80 6902 4444",
+                    regionId = "west_bengal"
+                ),
+                PoiEntity(
+                    osmId = 10060L,
+                    name = "Decathlon Siliguri (Vega Circle Mall)",
+                    category = PoiCategory.STORE.name,
+                    latitude = 26.7450,
+                    longitude = 88.4360,
+                    brand = "Decathlon Sports",
+                    address = "Vega Circle Mall, 3rd Mile, Sevoke Road, Siliguri 734008",
+                    openingHours = "10:00 - 21:00",
+                    phone = "+91 80 6902 4444",
+                    regionId = "west_bengal"
+                ),
+                PoiEntity(
+                    osmId = 10061L,
+                    name = "South City Mall",
+                    category = PoiCategory.STORE.name,
+                    latitude = 22.5015,
+                    longitude = 88.3618,
+                    brand = "Shopping Mall",
+                    address = "375 Prince Anwar Shah Road, South City, Kolkata 700068",
+                    openingHours = "10:00 - 22:00",
+                    phone = "+91 33 4007 2181",
+                    regionId = "west_bengal"
+                ),
+                PoiEntity(
+                    osmId = 10062L,
+                    name = "City Centre 1 (Salt Lake)",
+                    category = PoiCategory.STORE.name,
+                    latitude = 22.5898,
+                    longitude = 88.4087,
+                    brand = "Shopping Mall",
+                    address = "DC Block, Sector 1, Bidhannagar, Kolkata 700064",
+                    openingHours = "10:30 - 21:30",
+                    phone = "+91 33 2358 1010",
+                    regionId = "west_bengal"
                 )
             )
         }

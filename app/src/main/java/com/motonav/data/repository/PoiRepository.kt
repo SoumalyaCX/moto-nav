@@ -137,12 +137,16 @@ class PoiRepository @Inject constructor(
             }
         }
 
-        // 4. Query local database for offline or pre-seeded results
-        val localMatches = poiDao.searchByName(trimmed, limit)
+        // 4. Query local database for offline or pre-seeded results with proximity prioritization
+        val localMatches = if (userLocation != null) {
+            poiDao.searchByNameNear(trimmed, userLocation.latitude, userLocation.longitude, limit)
+        } else {
+            poiDao.searchByName(trimmed, limit)
+        }
         for (local in localMatches) {
             val exists = results.any {
                 it.name.equals(local.name, ignoreCase = true) ||
-                (Math.abs(it.latitude - local.latitude) < 0.01 && Math.abs(it.longitude - local.longitude) < 0.01)
+                (Math.abs(it.latitude - local.latitude) < 0.005 && Math.abs(it.longitude - local.longitude) < 0.005)
             }
             if (!exists) {
                 results.add(local)
@@ -183,7 +187,168 @@ class PoiRepository @Inject constructor(
             } catch (ignored: Exception) {}
         }
 
-        results.take(limit)
+        // STRICT PROXIMITY SORTING: Prioritize results closest to user's location
+        val sortedResults = if (userLocation != null) {
+            results.sortedBy { poi ->
+                val dLat = (poi.latitude - userLocation.latitude) * 111.0
+                val dLng = (poi.longitude - userLocation.longitude) * 111.0 * Math.cos(Math.toRadians(userLocation.latitude))
+                dLat * dLat + dLng * dLng
+            }
+        } else {
+            results
+        }
+
+        sortedResults.take(limit)
+    }
+
+    /**
+     * Look up or reverse-geocode any tapped spot on the map so users can inspect shops,
+     * businesses, or arbitrary points of interest by simply clicking anywhere on the map.
+     */
+    suspend fun findOrReverseGeocodePoi(latLng: LatLng): PoiEntity? = withContext(Dispatchers.IO) {
+        // 1. Look for existing POI in local database within ~250m
+        val deltaLat = 0.0025
+        val deltaLng = 0.0025 / Math.cos(Math.toRadians(latLng.latitude))
+        val localNearby = try {
+            poiDao.getNearbyPois(
+                userLat = latLng.latitude,
+                userLng = latLng.longitude,
+                minLat = latLng.latitude - deltaLat,
+                maxLat = latLng.latitude + deltaLat,
+                minLng = latLng.longitude - deltaLng,
+                maxLng = latLng.longitude + deltaLng,
+                limit = 1
+            ).firstOrNull()
+        } catch (ignored: Exception) { null }
+
+        if (localNearby != null) return@withContext localNearby
+
+        // 2. Query Mapbox Reverse Geocoding API if token configured
+        if (ApiConfig.isMapboxConfigured) {
+            try {
+                val token = ApiConfig.MAPBOX_ACCESS_TOKEN
+                val urlStr = "https://api.mapbox.com/geocoding/v5/mapbox.places/${latLng.longitude},${latLng.latitude}.json?access_token=$token&types=poi,address,neighborhood,locality&limit=1"
+                val conn = URL(urlStr).openConnection() as HttpURLConnection
+                conn.connectTimeout = 3000
+                conn.readTimeout = 3000
+                conn.setRequestProperty("User-Agent", "MotoNav/1.0")
+
+                if (conn.responseCode == 200) {
+                    val body = conn.inputStream.bufferedReader().use { it.readText() }
+                    val json = JSONObject(body)
+                    val features = json.optJSONArray("features")
+                    if (features != null && features.length() > 0) {
+                        val feat = features.getJSONObject(0)
+                        val text = feat.optString("text", "Map Location")
+                        val placeName = feat.optString("place_name", text)
+                        val props = feat.optJSONObject("properties")
+                        val categoryStr = props?.optString("category", "")?.lowercase() ?: ""
+
+                        val category = when {
+                            categoryStr.contains("gas") || categoryStr.contains("fuel") || text.contains("Petrol", true) -> PoiCategory.PETROL.name
+                            categoryStr.contains("restaurant") || categoryStr.contains("food") || text.contains("Dhaba", true) -> PoiCategory.DHABA.name
+                            categoryStr.contains("repair") || categoryStr.contains("auto") || text.contains("Mechanic", true) -> PoiCategory.MECHANIC.name
+                            categoryStr.contains("viewpoint") || categoryStr.contains("park") -> PoiCategory.VIEWPOINT.name
+                            categoryStr.contains("hospital") || categoryStr.contains("medical") -> PoiCategory.HOSPITAL.name
+                            else -> PoiCategory.STORE.name
+                        }
+
+                        val entity = PoiEntity(
+                            osmId = System.currentTimeMillis(),
+                            name = text,
+                            category = category,
+                            latitude = latLng.latitude,
+                            longitude = latLng.longitude,
+                            brand = props?.optString("category") ?: "Point of Interest",
+                            address = placeName,
+                            regionId = "online_reverse"
+                        )
+                        try { poiDao.insertAll(listOf(entity)) } catch (ignored: Exception) {}
+                        return@withContext entity
+                    }
+                }
+            } catch (e: Exception) {
+                Log.d(TAG, "Mapbox reverse geocode failed: ${e.message}")
+            }
+        }
+
+        // 3. Fallback: Photon Reverse Geocoder
+        try {
+            val urlStr = "https://photon.komoot.io/reverse?lat=${latLng.latitude}&lon=${latLng.longitude}"
+            val conn = URL(urlStr).openConnection() as HttpURLConnection
+            conn.connectTimeout = 3000
+            conn.readTimeout = 3000
+            conn.setRequestProperty("User-Agent", "MotoNav/1.0")
+
+            if (conn.responseCode == 200) {
+                val body = conn.inputStream.bufferedReader().use { it.readText() }
+                val json = JSONObject(body)
+                val features = json.optJSONArray("features")
+                if (features != null && features.length() > 0) {
+                    val feat = features.getJSONObject(0)
+                    val props = feat.optJSONObject("properties")
+                    if (props != null) {
+                        val name = props.optString("name").takeIf { it.isNotBlank() }
+                            ?: props.optString("street").takeIf { it.isNotBlank() }
+                            ?: props.optString("city").takeIf { it.isNotBlank() }
+                            ?: "Point on Map"
+                        val street = props.optString("street")
+                        val city = props.optString("city")
+                        val fullAddr = listOfNotNull(street.takeIf { it.isNotBlank() }, city.takeIf { it.isNotBlank() }).joinToString(", ")
+
+                        val entity = PoiEntity(
+                            osmId = System.currentTimeMillis(),
+                            name = name,
+                            category = PoiCategory.STORE.name,
+                            latitude = latLng.latitude,
+                            longitude = latLng.longitude,
+                            brand = city,
+                            address = fullAddr.ifBlank { name },
+                            regionId = "photon_reverse"
+                        )
+                        try { poiDao.insertAll(listOf(entity)) } catch (ignored: Exception) {}
+                        return@withContext entity
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.d(TAG, "Photon reverse failed: ${e.message}")
+        }
+
+        // 4. Android native Geocoder fallback
+        if (Geocoder.isPresent()) {
+            try {
+                val geocoder = Geocoder(context, Locale("en", "IN"))
+                @Suppress("DEPRECATION")
+                val addresses = geocoder.getFromLocation(latLng.latitude, latLng.longitude, 1)
+                if (!addresses.isNullOrEmpty()) {
+                    val addr = addresses[0]
+                    val placeName = addr.featureName ?: addr.thoroughfare ?: addr.locality ?: "Map Location"
+                    return@withContext PoiEntity(
+                        osmId = System.currentTimeMillis(),
+                        name = placeName,
+                        category = PoiCategory.STORE.name,
+                        latitude = latLng.latitude,
+                        longitude = latLng.longitude,
+                        brand = addr.locality ?: "Location",
+                        address = addr.getAddressLine(0) ?: "$placeName, West Bengal",
+                        regionId = "geocoder_reverse"
+                    )
+                }
+            } catch (ignored: Exception) {}
+        }
+
+        // 5. Generic point representation if tap occurs in an unmapped area
+        PoiEntity(
+            osmId = System.currentTimeMillis(),
+            name = "Dropped Pin",
+            category = PoiCategory.STORE.name,
+            latitude = latLng.latitude,
+            longitude = latLng.longitude,
+            brand = "Custom Destination",
+            address = "Coordinates: %.4f, %.4f".format(latLng.latitude, latLng.longitude),
+            regionId = "custom_pin"
+        )
     }
 
     /**

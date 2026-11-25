@@ -137,9 +137,21 @@ fun PoiDetailCard(
             .clip(RoundedCornerShape(24.dp))
             .background(CardBackground)
             .border(BorderStroke(1.dp, SpecularBorder), RoundedCornerShape(24.dp))
-            .padding(16.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
+            // Subtle top drag handle
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .width(40.dp)
+                    .height(4.dp)
+                    .clip(CircleShape)
+                    .background(Color(0x55FFFFFF))
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
             // Top Bar: Category badge, distance pill, and close button
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -147,6 +159,7 @@ fun PoiDetailCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
+                    modifier = Modifier.weight(1f, fill = false),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -161,7 +174,9 @@ fun PoiDetailCard(
                             text = categoryBadge.first,
                             color = categoryBadge.second,
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
 
@@ -175,17 +190,21 @@ fun PoiDetailCard(
                             text = "📍 $distanceKmFormatted away",
                             color = Color(0xFF38BDF8),
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
                         )
                     }
                 }
 
-                // Close Button
+                Spacer(modifier = Modifier.width(12.dp))
+
+                // High-visibility Close Button
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(36.dp)
                         .clip(CircleShape)
-                        .background(Color(0x33FFFFFF))
+                        .background(Color(0xD91E293B))
+                        .border(BorderStroke(1.dp, Color(0x66FFFFFF)), CircleShape)
                         .clickable { onDismiss() },
                     contentAlignment = Alignment.Center
                 ) {
@@ -193,7 +212,7 @@ fun PoiDetailCard(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Close",
                         tint = Color.White,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }

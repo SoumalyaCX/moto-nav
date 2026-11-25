@@ -65,6 +65,22 @@ interface PoiDao {
     """)
     suspend fun searchByName(query: String, limit: Int = 25): List<PoiEntity>
 
+    @Query("""
+        SELECT * FROM pois 
+        WHERE name LIKE '%' || :query || '%' 
+           OR brand LIKE '%' || :query || '%'
+           OR address LIKE '%' || :query || '%'
+        ORDER BY 
+            ((:userLat - latitude) * (:userLat - latitude) + (:userLng - longitude) * (:userLng - longitude)) ASC
+        LIMIT :limit
+    """)
+    suspend fun searchByNameNear(
+        query: String,
+        userLat: Double,
+        userLng: Double,
+        limit: Int = 30
+    ): List<PoiEntity>
+
     @Query("SELECT COUNT(*) FROM pois WHERE regionId = :regionId")
     suspend fun getPoiCountByRegion(regionId: String): Int
 

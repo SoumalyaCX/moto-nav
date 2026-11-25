@@ -143,6 +143,15 @@ class MapViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(selectedPoi = poi)
     }
 
+    fun onMapCoordinateTapped(coordinate: LatLng) {
+        viewModelScope.launch {
+            val poi = poiRepository.findOrReverseGeocodePoi(coordinate)
+            if (poi != null) {
+                _uiState.value = _uiState.value.copy(selectedPoi = poi)
+            }
+        }
+    }
+
     fun dismissPoiDetails() {
         _uiState.value = _uiState.value.copy(selectedPoi = null)
     }

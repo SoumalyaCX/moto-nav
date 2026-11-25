@@ -61,6 +61,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -154,6 +155,7 @@ fun MapScreen(
             recenterTrigger = recenterTrigger,
             isFrontFacing = isFrontFacing,
             onPoiClicked = { viewModel.onPoiSelected(it) },
+            onMapCoordinateTapped = { viewModel.onMapCoordinateTapped(it) },
             onDismissPoi = { viewModel.dismissPoiDetails() },
             modifier = Modifier.fillMaxSize()
         )
@@ -269,7 +271,7 @@ fun MapScreen(
             visible = uiState.selectedPoi != null,
             enter = fadeIn() + slideInVertically { it },
             exit = fadeOut() + slideOutVertically { it },
-            modifier = if (isLandscape) {
+            modifier = (if (isLandscape) {
                 Modifier
                     .align(Alignment.BottomStart)
                     .padding(start = 16.dp, bottom = 86.dp)
@@ -277,9 +279,9 @@ fun MapScreen(
             } else {
                 Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(start = 16.dp, end = 16.dp, bottom = 86.dp)
+                    .padding(start = 14.dp, end = 14.dp, bottom = 86.dp)
                     .fillMaxWidth()
-            }
+            }).zIndex(20f)
         ) {
             uiState.selectedPoi?.let { poi ->
                 PoiDetailCard(
@@ -296,7 +298,7 @@ fun MapScreen(
             visible = uiState.calculatedRoute != null && uiState.selectedPoi == null,
             enter = fadeIn() + slideInVertically { it },
             exit = fadeOut() + slideOutVertically { it },
-            modifier = if (isLandscape) {
+            modifier = (if (isLandscape) {
                 Modifier
                     .align(Alignment.BottomStart)
                     .padding(start = 16.dp, bottom = 86.dp)
@@ -304,9 +306,9 @@ fun MapScreen(
             } else {
                 Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(start = 16.dp, end = 16.dp, bottom = 86.dp)
+                    .padding(start = 14.dp, end = 14.dp, bottom = 86.dp)
                     .fillMaxWidth()
-            }
+            }).zIndex(20f)
         ) {
             uiState.calculatedRoute?.let { route ->
                 Card(
@@ -618,88 +620,94 @@ fun MapScreen(
                 }
             }
         } else {
-            // Portrait HUD Cluster
-            Column(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+            // Portrait HUD Cluster: Automatically hides when inspecting POI or reviewing calculated route to prevent covering close button
+            AnimatedVisibility(
+                visible = uiState.selectedPoi == null && uiState.calculatedRoute == null,
+                enter = fadeIn() + slideInHorizontally { it },
+                exit = fadeOut() + slideOutHorizontally { it },
+                modifier = Modifier.align(Alignment.CenterEnd)
             ) {
-                OrientationLockButton(
-                    lockMode = orientationLock,
-                    onClick = onToggleOrientationLock
-                )
-
-                CompassWidget(
-                    bearing = uiState.bearing,
-                    isFrontFacing = isFrontFacing,
-                    onClick = { isFrontFacing = !isFrontFacing }
-                )
-
-                SpeedIndicator(speedKmh = uiState.speedKmh)
-
-                LeanAngleWidget(
-                    leanAngle = uiState.leanAngle,
-                    maxLeft = uiState.maxLeftLean,
-                    maxRight = uiState.maxRightLean,
-                    onResetMax = { viewModel.resetMaxLean() }
-                )
-
-                BatteryWidget(
-                    percentage = batteryStatus.percentage,
-                    isCharging = batteryStatus.isCharging
-                )
-
-                // Import GPX Route
-                Box(
+                Column(
                     modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xCC0F172A))
-                        .border(BorderStroke(1.dp, Color(0x33FFFFFF)), CircleShape)
-                        .clickable { gpxLauncher.launch("*/*") },
-                    contentAlignment = Alignment.Center
+                        .padding(end = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text(
-                        text = "GPX",
-                        color = Color(0xFF38BDF8),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.ExtraBold
+                    OrientationLockButton(
+                        lockMode = orientationLock,
+                        onClick = onToggleOrientationLock
                     )
-                }
 
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xCC0F172A))
-                        .border(BorderStroke(1.dp, Color(0x33FFFFFF)), CircleShape)
-                        .clickable { recenterTrigger++ },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.MyLocation,
-                        contentDescription = "Recenter on Me",
-                        tint = Color(0xFF38BDF8)
+                    CompassWidget(
+                        bearing = uiState.bearing,
+                        isFrontFacing = isFrontFacing,
+                        onClick = { isFrontFacing = !isFrontFacing }
                     )
-                }
 
-                // Settings Button (Portrait)
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xCC0F172A))
-                        .border(BorderStroke(1.dp, Color(0x33FFFFFF)), CircleShape)
-                        .clickable { onOpenSettings() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "Settings",
-                        tint = Color.White
+                    SpeedIndicator(speedKmh = uiState.speedKmh)
+
+                    LeanAngleWidget(
+                        leanAngle = uiState.leanAngle,
+                        maxLeft = uiState.maxLeftLean,
+                        maxRight = uiState.maxRightLean,
+                        onResetMax = { viewModel.resetMaxLean() }
                     )
+
+                    BatteryWidget(
+                        percentage = batteryStatus.percentage,
+                        isCharging = batteryStatus.isCharging
+                    )
+
+                    // Import GPX Route
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xCC0F172A))
+                            .border(BorderStroke(1.dp, Color(0x33FFFFFF)), CircleShape)
+                            .clickable { gpxLauncher.launch("*/*") },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "GPX",
+                            color = Color(0xFF38BDF8),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xCC0F172A))
+                            .border(BorderStroke(1.dp, Color(0x33FFFFFF)), CircleShape)
+                            .clickable { recenterTrigger++ },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MyLocation,
+                            contentDescription = "Recenter on Me",
+                            tint = Color(0xFF38BDF8)
+                        )
+                    }
+
+                    // Settings Button (Portrait)
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xCC0F172A))
+                            .border(BorderStroke(1.dp, Color(0x33FFFFFF)), CircleShape)
+                            .clickable { onOpenSettings() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Settings",
+                            tint = Color.White
+                        )
+                    }
                 }
             }
         }
@@ -736,6 +744,7 @@ fun MapViewportCanvas(
     recenterTrigger: Int,
     isFrontFacing: Boolean = false,
     onPoiClicked: (com.motonav.data.local.db.entities.PoiEntity) -> Unit = {},
+    onMapCoordinateTapped: (com.motonav.data.model.LatLng) -> Unit = {},
     onDismissPoi: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -780,6 +789,81 @@ fun MapViewportCanvas(
         }
     }
 
+    fun handleMapTap(map: MapLibreMap, clickLatLng: MapLibreLatLng) {
+        // 1. Check nearby POIs in memory (~150-200m)
+        val nearby = uiState.nearbyPois.firstOrNull { poi ->
+            val dLat = Math.abs(poi.latitude - clickLatLng.latitude)
+            val dLng = Math.abs(poi.longitude - clickLatLng.longitude)
+            dLat < 0.0018 && dLng < 0.0018
+        }
+        if (nearby != null) {
+            onPoiClicked(nearby)
+            val cam = CameraPosition.Builder()
+                .target(MapLibreLatLng(nearby.latitude, nearby.longitude))
+                .zoom(Math.max(map.cameraPosition.zoom, 14.5))
+                .build()
+            map.animateCamera(CameraUpdateFactory.newCameraPosition(cam), 500)
+            return
+        }
+
+        // 2. Query rendered vector features on the map (e.g. Decathlon, shops, supermarkets, hospitals)
+        val pointF = map.projection.toScreenLocation(clickLatLng)
+        val hitBox = android.graphics.RectF(
+            pointF.x - 32f,
+            pointF.y - 32f,
+            pointF.x + 32f,
+            pointF.y + 32f
+        )
+        val features = try { map.queryRenderedFeatures(hitBox) } catch (e: Exception) { emptyList() }
+        val poiFeature = features.firstOrNull { feat ->
+            val n = feat.getStringProperty("name") ?: feat.getStringProperty("name_en")
+            !n.isNullOrBlank()
+        }
+
+        if (poiFeature != null) {
+            val featName = poiFeature.getStringProperty("name")
+                ?: poiFeature.getStringProperty("name_en")
+                ?: "Point of Interest"
+            val featClass = poiFeature.getStringProperty("class")
+                ?: poiFeature.getStringProperty("type")
+                ?: poiFeature.getStringProperty("category")
+                ?: ""
+            val category = when {
+                featClass.contains("fuel") || featClass.contains("gas") || featName.contains("Petrol", true) -> "PETROL"
+                featClass.contains("food") || featClass.contains("restaurant") || featClass.contains("cafe") || featName.contains("Dhaba", true) -> "DHABA"
+                featClass.contains("motorcycle") || featClass.contains("auto") || featClass.contains("repair") -> "MECHANIC"
+                featClass.contains("hospital") || featClass.contains("pharmacy") || featClass.contains("medical") -> "HOSPITAL"
+                featClass.contains("viewpoint") || featClass.contains("attraction") || featClass.contains("park") -> "VIEWPOINT"
+                else -> "STORE"
+            }
+            val tappedPoi = com.motonav.data.local.db.entities.PoiEntity(
+                osmId = System.currentTimeMillis(),
+                name = featName,
+                category = category,
+                latitude = clickLatLng.latitude,
+                longitude = clickLatLng.longitude,
+                brand = featClass.ifBlank { "Point of Interest" },
+                address = "Near $featName, West Bengal",
+                regionId = "rendered_vector"
+            )
+            onPoiClicked(tappedPoi)
+            val cam = CameraPosition.Builder()
+                .target(MapLibreLatLng(clickLatLng.latitude, clickLatLng.longitude))
+                .zoom(Math.max(map.cameraPosition.zoom, 14.5))
+                .build()
+            map.animateCamera(CameraUpdateFactory.newCameraPosition(cam), 500)
+            return
+        }
+
+        // 3. Fallback: Reverse geocode / Database lookup for clicked coordinate
+        onMapCoordinateTapped(com.motonav.data.model.LatLng(clickLatLng.latitude, clickLatLng.longitude))
+        val cam = CameraPosition.Builder()
+            .target(MapLibreLatLng(clickLatLng.latitude, clickLatLng.longitude))
+            .zoom(Math.max(map.cameraPosition.zoom, 14.5))
+            .build()
+        map.animateCamera(CameraUpdateFactory.newCameraPosition(cam), 500)
+    }
+
     AndroidView(
         factory = {
             mapView.apply {
@@ -798,6 +882,11 @@ fun MapViewportCanvas(
                         }
                         if (clickedPoi != null) {
                             onPoiClicked(clickedPoi)
+                            val cam = CameraPosition.Builder()
+                                .target(MapLibreLatLng(clickedPoi.latitude, clickedPoi.longitude))
+                                .zoom(Math.max(map.cameraPosition.zoom, 14.5))
+                                .build()
+                            map.animateCamera(CameraUpdateFactory.newCameraPosition(cam), 500)
                             true
                         } else {
                             false
@@ -805,18 +894,8 @@ fun MapViewportCanvas(
                     }
 
                     map.addOnMapClickListener { clickLatLng ->
-                        val nearby = uiState.nearbyPois.firstOrNull { poi ->
-                            val dLat = Math.abs(poi.latitude - clickLatLng.latitude)
-                            val dLng = Math.abs(poi.longitude - clickLatLng.longitude)
-                            dLat < 0.0012 && dLng < 0.0012
-                        }
-                        if (nearby != null) {
-                            onPoiClicked(nearby)
-                            true
-                        } else {
-                            onDismissPoi()
-                            false
-                        }
+                        handleMapTap(map, clickLatLng)
+                        true
                     }
 
                     loadStyleWithFallback(map, mapView, resolvedStyle) {
@@ -840,6 +919,11 @@ fun MapViewportCanvas(
                 }
                 if (clickedPoi != null) {
                     onPoiClicked(clickedPoi)
+                    val cam = CameraPosition.Builder()
+                        .target(MapLibreLatLng(clickedPoi.latitude, clickedPoi.longitude))
+                        .zoom(Math.max(map.cameraPosition.zoom, 14.5))
+                        .build()
+                    map.animateCamera(CameraUpdateFactory.newCameraPosition(cam), 500)
                     true
                 } else {
                     false
@@ -847,18 +931,8 @@ fun MapViewportCanvas(
             }
 
             map.addOnMapClickListener { clickLatLng ->
-                val nearby = uiState.nearbyPois.firstOrNull { poi ->
-                    val dLat = Math.abs(poi.latitude - clickLatLng.latitude)
-                    val dLng = Math.abs(poi.longitude - clickLatLng.longitude)
-                    dLat < 0.0012 && dLng < 0.0012
-                }
-                if (nearby != null) {
-                    onPoiClicked(nearby)
-                    true
-                } else {
-                    onDismissPoi()
-                    false
-                }
+                handleMapTap(map, clickLatLng)
+                true
             }
 
             if (loadedStyleKey != resolvedStyle) {
