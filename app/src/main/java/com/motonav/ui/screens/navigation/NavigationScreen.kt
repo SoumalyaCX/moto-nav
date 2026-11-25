@@ -258,11 +258,6 @@ fun NavigationScreen(
                                         modifier = Modifier.size(24.dp)
                                     )
                                 }
-                                        contentDescription = "Close HUD",
-                                        tint = Color.LightGray,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
 
                                 SpeedIndicator(speedKmh = status.currentSpeedKmh)
 

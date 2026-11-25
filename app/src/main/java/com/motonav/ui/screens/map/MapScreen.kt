@@ -673,23 +673,6 @@ fun MapScreen(
             }
         }
 
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xEE1E293B))
-                        .clickable { onOpenSettings() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "Settings",
-                        tint = Color.White
-                    )
-                }
-            }
-        }
-
         // 7. Route Calculating Indicator
         if (uiState.isCalculatingRoute) {
             Box(
