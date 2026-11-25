@@ -19,6 +19,7 @@ class MotoNavApp : Application() {
     companion object {
         const val NAVIGATION_NOTIFICATION_CHANNEL_ID = "motonav_active_navigation"
         const val LOCATION_ALERTS_CHANNEL_ID = "motonav_location_alerts"
+        const val OFFLINE_MAP_CHANNEL_ID = "motonav_offline_alerts"
     }
 
     @Inject
@@ -60,8 +61,19 @@ class MotoNavApp : Application() {
                 description = "Alerts for incoming location links from WhatsApp"
             }
 
+            // Offline map alert channel (Prompt to download state map when entering new state)
+            val offlineAlertChannel = NotificationChannel(
+                OFFLINE_MAP_CHANNEL_ID,
+                "Offline Map Alerts",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Prompts to download state map when entering an un-downloaded state"
+                setShowBadge(true)
+            }
+
             notificationManager.createNotificationChannel(navChannel)
             notificationManager.createNotificationChannel(alertChannel)
+            notificationManager.createNotificationChannel(offlineAlertChannel)
         }
     }
 }

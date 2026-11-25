@@ -19,6 +19,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -129,6 +130,7 @@ fun MapScreen(
     val spotifyState by viewModel.spotifyState.collectAsState()
     val waMessages by viewModel.waMessages.collectAsState()
     val batteryStatus by viewModel.batteryStatus.collectAsState()
+    val offlineAlert by viewModel.offlineAlert.collectAsState()
 
     var recenterTrigger by remember { mutableStateOf(0) }
     var isFrontFacing by remember { mutableStateOf(false) }
@@ -465,6 +467,87 @@ fun MapScreen(
                 onSkipPrevious = { viewModel.prevTrack() },
                 onOpenSpotify = { viewModel.openSpotify() }
             )
+        }
+
+        // 4b. Missing Offline State Heads-Up Notification (5s auto-dismiss or manual user dismiss)
+        AnimatedVisibility(
+            visible = offlineAlert != null,
+            enter = slideInVertically { -it } + fadeIn(),
+            exit = slideOutVertically { -it } + fadeOut(),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 14.dp, start = if (isLandscape) 90.dp else 16.dp, end = if (isLandscape) 90.dp else 16.dp)
+                .zIndex(15f)
+        ) {
+            offlineAlert?.let { region ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth(if (isLandscape) 0.58f else 1f)
+                        .border(
+                            BorderStroke(1.5.dp, Color(0xFFF59E0B)),
+                            RoundedCornerShape(18.dp)
+                        ),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xF20A0F1D))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = "🗺️", fontSize = 22.sp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "Offline Map Missing",
+                                    color = Color(0xFFF59E0B),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "· 5s",
+                                    color = Color.LightGray,
+                                    fontSize = 11.sp
+                                )
+                            }
+                            Text(
+                                text = "You entered ${region.displayName}. Map & POIs not downloaded.",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                viewModel.dismissOfflineAlert()
+                                onOpenDownloads()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text(text = "📥 Download", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        IconButton(
+                            onClick = { viewModel.dismissOfflineAlert() },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Dismiss",
+                                tint = Color.LightGray,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         // 5. WhatsApp Location Peek popup (if friend shares location)
@@ -882,6 +965,10 @@ fun MapViewportCanvas(
                 maki = featMaki
             )
             val info = com.motonav.data.model.CategoryResolver.getCategoryInfo(category)
+            val matchedRegion = com.motonav.data.local.MapFileManager.AVAILABLE_REGIONS.find { r ->
+                clickLatLng.latitude in r.minLat..r.maxLat && clickLatLng.longitude in r.minLng..r.maxLng
+            }
+            val regionTitle = matchedRegion?.displayName ?: "India"
             val tappedPoi = com.motonav.data.local.db.entities.PoiEntity(
                 osmId = System.currentTimeMillis(),
                 name = featName,
@@ -889,8 +976,8 @@ fun MapViewportCanvas(
                 latitude = clickLatLng.latitude,
                 longitude = clickLatLng.longitude,
                 brand = featClass.ifBlank { info.title },
-                address = "Near $featName, West Bengal",
-                regionId = "rendered_vector"
+                address = "Near $featName, $regionTitle",
+                regionId = matchedRegion?.id ?: "rendered_vector"
             )
             onPoiClicked(tappedPoi)
             val cam = CameraPosition.Builder()

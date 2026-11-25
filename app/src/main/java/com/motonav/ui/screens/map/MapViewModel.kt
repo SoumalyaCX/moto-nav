@@ -2,10 +2,12 @@ package com.motonav.ui.screens.map
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.motonav.data.local.OfflineStateNotifier
 import com.motonav.data.local.PreferencesStore
 import com.motonav.data.local.db.entities.PoiCategory
 import com.motonav.data.local.db.entities.PoiEntity
 import com.motonav.data.model.LatLng
+import com.motonav.data.model.MapRegion
 import com.motonav.data.model.NavigationRoute
 import com.motonav.data.model.RouteIntel
 import com.motonav.data.repository.PoiRepository
@@ -62,7 +64,8 @@ class MapViewModel @Inject constructor(
     private val ferrostarBridge: FerrostarBridge,
     private val spotifyManager: SpotifyRemoteManager,
     private val batteryOptimizer: BatteryOptimizer,
-    private val preferencesStore: PreferencesStore
+    private val preferencesStore: PreferencesStore,
+    private val offlineStateNotifier: OfflineStateNotifier
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MapUiState())
@@ -71,6 +74,7 @@ class MapViewModel @Inject constructor(
     val spotifyState: StateFlow<SpotifyPlayerState> = spotifyManager.playerState
     val waMessages: StateFlow<List<WALocationMessage>> = WANotificationService.receivedLocationMessages
     val batteryStatus = batteryOptimizer.batteryStatus
+    val offlineAlert: StateFlow<MapRegion?> = offlineStateNotifier.pendingAlert
 
     init {
         // Track live GPS location & speed
@@ -79,6 +83,12 @@ class MapViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(
                     userLocation = loc.coordinate,
                     speedKmh = loc.speedKmh
+                )
+                // Check if user is in an un-downloaded state and notify with 5-second auto-dismiss
+                offlineStateNotifier.checkLocationAndNotify(
+                    loc.coordinate.latitude,
+                    loc.coordinate.longitude,
+                    viewModelScope
                 )
             }
         }
@@ -281,6 +291,9 @@ class MapViewModel @Inject constructor(
 
     // WhatsApp peek dismiss
     fun dismissWAMessage(id: String) = WANotificationService.clearMessage(id)
+
+    // Offline state missing alert dismiss
+    fun dismissOfflineAlert() = offlineStateNotifier.dismissAlert()
 
     private fun loadNearbyPois() {
         viewModelScope.launch {

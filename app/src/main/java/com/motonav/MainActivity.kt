@@ -81,6 +81,8 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var poiRepository: com.motonav.data.repository.PoiRepository
 
+    private val navigateToDownloads = kotlinx.coroutines.flow.MutableStateFlow(false)
+
     private val requestPermissionsLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -100,6 +102,9 @@ class MainActivity : ComponentActivity() {
         // Parse external geo link or GPX trail if app was launched via shared intent
         handleIncomingGeoIntent(intent)
         handleIncomingGpxIntent(intent)
+        if (intent?.getStringExtra("navigate_to") == "downloads") {
+            navigateToDownloads.value = true
+        }
 
         setContent {
             val darkModePref by preferencesStore.darkModePreferenceFlow.collectAsState(initial = com.motonav.data.local.DarkModePreference.AUTO)
@@ -126,6 +131,14 @@ class MainActivity : ComponentActivity() {
                 ) {
                     var currentScreen by remember { mutableStateOf(Screen.MAP) }
                     var orientationLock by remember { mutableStateOf(ScreenOrientationLock.AUTO) }
+
+                    val openDownloadsTrigger by navigateToDownloads.collectAsState()
+                    LaunchedEffect(openDownloadsTrigger) {
+                        if (openDownloadsTrigger) {
+                            currentScreen = Screen.DOWNLOADS
+                            navigateToDownloads.value = false
+                        }
+                    }
 
                     val activity = this@MainActivity
                     LaunchedEffect(orientationLock) {
@@ -247,8 +260,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
+        setIntent(intent)
         handleIncomingGeoIntent(intent)
         handleIncomingGpxIntent(intent)
+        if (intent?.getStringExtra("navigate_to") == "downloads") {
+            navigateToDownloads.value = true
+        }
     }
 
     private fun handleIncomingGeoIntent(intent: Intent?) {

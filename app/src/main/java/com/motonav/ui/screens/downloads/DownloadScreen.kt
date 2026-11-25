@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -163,12 +164,12 @@ fun DownloadScreen(
                     onDownload = {
                         scope.launch {
                             downloadingRegionId = region.id
-                            downloadStatusText = "Downloading vector tiles for ${region.displayName}..."
+                            downloadStatusText = "Downloading vector tiles & places for ${region.displayName}..."
 
-                            // Extract / create offline files
-                            mapFileManager.ensurePrepackagedRegionExtracted()
+                            // Mark region downloaded in storage
+                            mapFileManager.markRegionDownloaded(region)
 
-                            // Populate real stores, fuel hubs, and amenities via Mapbox & OSM
+                            // Populate real stores, fuel hubs, and amenities via Mapbox & OSM into SQLite DB
                             val count = poiRepository.populatePoisForRegion(region) { status ->
                                 downloadStatusText = status
                             }
@@ -179,6 +180,15 @@ fun DownloadScreen(
                             }
                             downloadingRegionId = null
                             downloadStatusText = ""
+                        }
+                    },
+                    onDelete = {
+                        scope.launch {
+                            mapFileManager.deleteRegion(region)
+                            poiCounts[region.id] = 0
+                            regions = regions.map {
+                                if (it.id == region.id) it.copy(status = RegionStatus.NOT_DOWNLOADED, downloadProgressPercent = 0) else it
+                            }
                         }
                     }
                 )
@@ -194,7 +204,8 @@ fun RegionDownloadCard(
     isDownloading: Boolean = false,
     poiCount: Int = 0,
     onSelectActive: () -> Unit,
-    onDownload: () -> Unit
+    onDownload: () -> Unit,
+    onDelete: () -> Unit = {}
 ) {
     val isInstalled = region.status == RegionStatus.DOWNLOADED || region.status == RegionStatus.PRE_INSTALLED
 
@@ -256,26 +267,40 @@ fun RegionDownloadCard(
                     strokeWidth = 2.5.dp
                 )
             } else if (isInstalled) {
-                if (isActive) {
-                    Box(
-                        modifier = Modifier
-                            .background(Color(0xFF10B981).copy(alpha = 0.2f), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = "ACTIVE",
-                            color = Color(0xFF10B981),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isActive) {
+                        Box(
+                            modifier = Modifier
+                                .background(Color(0xFF10B981).copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = "ACTIVE",
+                                color = Color(0xFF10B981),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    } else {
+                        Button(
+                            onClick = onSelectActive,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Use", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
-                } else {
-                    Button(
-                        onClick = onSelectActive,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
-                        shape = RoundedCornerShape(8.dp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier.size(32.dp)
                     ) {
-                        Text("Use", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Delete downloaded state",
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                 }
             } else {

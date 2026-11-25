@@ -68,6 +68,7 @@ interface PoiDao {
         WHERE name LIKE '%' || :query || '%' 
            OR brand LIKE '%' || :query || '%'
            OR address LIKE '%' || :query || '%'
+           OR category LIKE '%' || :query || '%'
         ORDER BY 
             CASE 
                 WHEN name LIKE :query || '%' THEN 1 
@@ -84,6 +85,7 @@ interface PoiDao {
         WHERE name LIKE '%' || :query || '%' 
            OR brand LIKE '%' || :query || '%'
            OR address LIKE '%' || :query || '%'
+           OR category LIKE '%' || :query || '%'
         ORDER BY 
             ((:userLat - latitude) * (:userLat - latitude) + (:userLng - longitude) * (:userLng - longitude)) ASC
         LIMIT :limit

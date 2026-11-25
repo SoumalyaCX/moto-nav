@@ -136,50 +136,72 @@ class PoiRepository @Inject constructor(
     suspend fun searchPois(
         query: String,
         userLocation: LatLng? = null,
-        limit: Int = 20
+        limit: Int = 30
     ): List<PoiEntity> = withContext(Dispatchers.IO) {
         val trimmed = query.trim()
         if (trimmed.isBlank()) return@withContext emptyList()
 
         val results = mutableListOf<PoiEntity>()
 
-        // 1. If Mapbox public access token is configured in ApiConfig.kt, query Mapbox Places API
-        if (ApiConfig.isMapboxConfigured) {
-            val mapboxResults = searchMapbox(trimmed, userLocation, ApiConfig.MAPBOX_ACCESS_TOKEN, limit)
-            if (mapboxResults.isNotEmpty()) {
-                results.addAll(mapboxResults)
-            }
-        }
-
-        // 2. If Google Places gave no results or no key is configured, query Photon by Komoot (Free global OSM geocoder with shop/POI detail)
-        if (results.isEmpty()) {
-            val photonResults = searchPhoton(trimmed, userLocation, limit)
-            if (photonResults.isNotEmpty()) {
-                results.addAll(photonResults)
-            }
-        }
-
-        // 3. Nominatim OpenStreetMap fallback if still empty
-        if (results.isEmpty()) {
-            val nominatimResults = searchNominatim(trimmed, limit)
-            if (nominatimResults.isNotEmpty()) {
-                results.addAll(nominatimResults)
-            }
-        }
-
-        // 4. Query local database for offline or pre-seeded results with proximity prioritization
+        // 1. Immediately query local SQLite database for instant offline access to all downloaded state POIs
         val localMatches = if (userLocation != null) {
             poiDao.searchByNameNear(trimmed, userLocation.latitude, userLocation.longitude, limit)
         } else {
             poiDao.searchByName(trimmed, limit)
         }
-        for (local in localMatches) {
-            val exists = results.any {
-                it.name.equals(local.name, ignoreCase = true) ||
-                (Math.abs(it.latitude - local.latitude) < 0.005 && Math.abs(it.longitude - local.longitude) < 0.005)
+        results.addAll(localMatches)
+
+        // 2. If Mapbox public access token is configured in ApiConfig.kt, query Mapbox Places API
+        if (ApiConfig.isMapboxConfigured) {
+            try {
+                val mapboxResults = searchMapbox(trimmed, userLocation, ApiConfig.MAPBOX_ACCESS_TOKEN, limit)
+                for (mb in mapboxResults) {
+                    val exists = results.any {
+                        it.name.equals(mb.name, ignoreCase = true) ||
+                        (Math.abs(it.latitude - mb.latitude) < 0.005 && Math.abs(it.longitude - mb.longitude) < 0.005)
+                    }
+                    if (!exists) {
+                        results.add(mb)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.d(TAG, "Mapbox places search skipped/offline: ${e.message}")
             }
-            if (!exists) {
-                results.add(local)
+        }
+
+        // 3. Photon by Komoot geocoder fallback if still few results
+        if (results.size < 5) {
+            try {
+                val photonResults = searchPhoton(trimmed, userLocation, limit)
+                for (photon in photonResults) {
+                    val exists = results.any {
+                        it.name.equals(photon.name, ignoreCase = true) ||
+                        (Math.abs(it.latitude - photon.latitude) < 0.005 && Math.abs(it.longitude - photon.longitude) < 0.005)
+                    }
+                    if (!exists) {
+                        results.add(photon)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.d(TAG, "Photon places search offline: ${e.message}")
+            }
+        }
+
+        // 4. Nominatim OpenStreetMap fallback if still empty
+        if (results.isEmpty()) {
+            try {
+                val nominatimResults = searchNominatim(trimmed, limit)
+                for (nom in nominatimResults) {
+                    val exists = results.any {
+                        it.name.equals(nom.name, ignoreCase = true) ||
+                        (Math.abs(it.latitude - nom.latitude) < 0.005 && Math.abs(it.longitude - nom.longitude) < 0.005)
+                    }
+                    if (!exists) {
+                        results.add(nom)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.d(TAG, "Nominatim search offline: ${e.message}")
             }
         }
 

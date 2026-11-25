@@ -27,15 +27,15 @@ class MapFileManager @Inject constructor(
         val AVAILABLE_REGIONS = listOf(
             MapRegion(
                 id = "west_bengal",
-                displayName = "West Bengal (Default Pre-Pack)",
+                displayName = "West Bengal (Kolkata / Siliguri)",
                 stateCode = "WB",
                 approxSizeMb = 145,
                 minLat = 21.5,
                 minLng = 85.8,
                 maxLat = 27.2,
                 maxLng = 89.9,
-                isPrepackaged = true,
-                status = RegionStatus.PRE_INSTALLED
+                isPrepackaged = false,
+                status = RegionStatus.NOT_DOWNLOADED
             ),
             MapRegion(
                 id = "karnataka",
@@ -140,9 +140,6 @@ class MapFileManager @Inject constructor(
 
                 if (hasAsset) {
                     copyAssetToFile(assetPath, wbPmtiles)
-                } else {
-                    // Create placeholder marker if asset is to be downloaded
-                    wbPmtiles.createNewFile()
                 }
             }
 
@@ -207,14 +204,62 @@ class MapFileManager @Inject constructor(
     fun getInstalledRegions(): List<MapRegion> {
         return AVAILABLE_REGIONS.map { region ->
             val pmtiles = region.getLocalPmtilesFile(mapsDirectory)
-            if (pmtiles.exists() && pmtiles.length() > 0) {
+            if (pmtiles.exists()) {
                 region.copy(status = RegionStatus.DOWNLOADED, downloadProgressPercent = 100)
             } else if (region.isPrepackaged) {
                 region.copy(status = RegionStatus.PRE_INSTALLED, downloadProgressPercent = 100)
             } else {
-                region
+                region.copy(status = RegionStatus.NOT_DOWNLOADED, downloadProgressPercent = 0)
             }
         }
+    }
+
+    /**
+     * Checks if a given region's offline data exists in local storage.
+     */
+    fun isRegionDownloaded(regionId: String): Boolean {
+        val region = AVAILABLE_REGIONS.find { it.id == regionId } ?: return false
+        val pmtiles = region.getLocalPmtilesFile(mapsDirectory)
+        return pmtiles.exists()
+    }
+
+    /**
+     * Finds the matching or closest region for a given latitude and longitude.
+     */
+    fun findRegionForLocation(lat: Double, lng: Double): MapRegion? {
+        val direct = AVAILABLE_REGIONS.find { region ->
+            lat in region.minLat..region.maxLat && lng in region.minLng..region.maxLng
+        }
+        if (direct != null) return direct
+
+        // If outside exact bounding boxes, find nearest Indian state center
+        return AVAILABLE_REGIONS.minByOrNull { region ->
+            val centerLat = (region.minLat + region.maxLat) / 2.0
+            val centerLng = (region.minLng + region.maxLng) / 2.0
+            val dLat = lat - centerLat
+            val dLng = lng - centerLng
+            dLat * dLat + dLng * dLng
+        }
+    }
+
+    /**
+     * Marks a region as locally downloaded by ensuring the offline file exists.
+     */
+    suspend fun markRegionDownloaded(region: MapRegion) = withContext(Dispatchers.IO) {
+        val pmtiles = region.getLocalPmtilesFile(mapsDirectory)
+        if (!pmtiles.exists()) {
+            pmtiles.createNewFile()
+        }
+    }
+
+    /**
+     * Deletes a downloaded region from local storage.
+     */
+    suspend fun deleteRegion(region: MapRegion) = withContext(Dispatchers.IO) {
+        val pmtiles = region.getLocalPmtilesFile(mapsDirectory)
+        if (pmtiles.exists()) pmtiles.delete()
+        val graphDir = region.getLocalGraphDir(mapsDirectory)
+        if (graphDir.exists()) graphDir.deleteRecursively()
     }
 
     fun getAvailableStorageBytes(): Long {
