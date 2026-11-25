@@ -155,14 +155,20 @@ fun MiniSpotifyPlayer(
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = displayArtist,
-                    color = if (!hasNotificationAccess) Color(0xFFFBBF24) else Color(0xFF1DB954),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (playerState.isPlaying) {
+                        com.motonav.ui.widgets.SpotifyAudioWave(isPlaying = true)
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
+                    Text(
+                        text = displayArtist,
+                        color = if (!hasNotificationAccess) Color(0xFFFBBF24) else Color(0xFF1DB954),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
 
             // Glove-friendly motorcycle touch controls (minimum 48dp targets)

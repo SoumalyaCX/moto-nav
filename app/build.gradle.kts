@@ -97,7 +97,16 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
+    implementation(libs.androidx.compose.ui.text.google.fonts)
     implementation(libs.androidx.navigation.compose)
+
+    // Cockpit Design System (Haze, Vico, Lottie, Phosphor)
+    implementation(libs.dev.chrisbanes.haze)
+    implementation(libs.dev.chrisbanes.haze.materials)
+    implementation(libs.vico.compose)
+    implementation(libs.vico.compose.m3)
+    implementation(libs.lottie.compose)
+    implementation(libs.phosphor.icon)
 
     // Hilt Dependency Injection
     implementation(libs.hilt.android)

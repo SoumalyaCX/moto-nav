@@ -84,11 +84,17 @@ import com.motonav.ui.screens.map.components.PoiQuickFilters
 import com.motonav.ui.screens.map.components.PoiDetailCard
 import com.motonav.navigation.GpxParser
 import com.motonav.ui.widgets.BatteryWidget
+import com.motonav.ui.widgets.CockpitPulseIndicator
 import com.motonav.ui.widgets.CompassWidget
 import com.motonav.ui.widgets.LeanAngleWidget
 import com.motonav.ui.widgets.OrientationLockButton
+import com.motonav.ui.widgets.RouteElevationChart
 import com.motonav.ui.widgets.ScreenOrientationLock
 import com.motonav.ui.widgets.SpeedIndicator
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.haze
+import dev.chrisbanes.haze.hazeChild
+import dev.chrisbanes.haze.materials.HazeMaterials
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.annotations.MarkerOptions
@@ -126,6 +132,7 @@ fun MapScreen(
     var isFrontFacing by remember { mutableStateOf(false) }
     var isSearchExpanded by remember { mutableStateOf(false) }
     var isDrawerOpen by remember { mutableStateOf(false) }
+    val hazeState = remember { HazeState() }
 
     val context = LocalContext.current
     val gpxLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -157,7 +164,7 @@ fun MapScreen(
             onPoiClicked = { viewModel.onPoiSelected(it) },
             onMapCoordinateTapped = { viewModel.onMapCoordinateTapped(it) },
             onDismissPoi = { viewModel.dismissPoiDetails() },
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize().haze(hazeState)
         )
 
         // 2. Top Layer: Compact expandable search button & category pills
@@ -281,7 +288,7 @@ fun MapScreen(
                     .align(Alignment.BottomCenter)
                     .padding(start = 14.dp, end = 14.dp, bottom = 86.dp)
                     .fillMaxWidth()
-            }).zIndex(20f)
+            }).zIndex(20f).hazeChild(state = hazeState, style = HazeMaterials.ultraThin())
         ) {
             uiState.selectedPoi?.let { poi ->
                 PoiDetailCard(
@@ -308,7 +315,7 @@ fun MapScreen(
                     .align(Alignment.BottomCenter)
                     .padding(start = 14.dp, end = 14.dp, bottom = 86.dp)
                     .fillMaxWidth()
-            }).zIndex(20f)
+            }).zIndex(20f).hazeChild(state = hazeState, style = HazeMaterials.ultraThin())
         ) {
             uiState.calculatedRoute?.let { route ->
                 Card(
@@ -386,6 +393,13 @@ fun MapScreen(
                             }
                         }
 
+                        // Route Elevation & Terrain Profile (Vico Charts)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        RouteElevationChart(
+                            title = "⛰️ Altitude Profile (${route.ridingStyle})",
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
                         Spacer(modifier = Modifier.height(10.dp))
                         Button(
                             onClick = { viewModel.startNavigation(onNavigateToActiveRide) },
@@ -414,9 +428,9 @@ fun MapScreen(
             }
         }
 
-        // 4. Spotify Player: Placed at bottom-left in landscape mode
+        // 4. Spotify Player: Placed at bottom-left in landscape mode with Haze glassmorphism
         Box(
-            modifier = if (isLandscape) {
+            modifier = (if (isLandscape) {
                 Modifier
                     .align(Alignment.BottomStart)
                     .padding(start = 16.dp, bottom = 14.dp)
@@ -426,7 +440,7 @@ fun MapScreen(
                     .align(Alignment.BottomCenter)
                     .padding(horizontal = 16.dp, vertical = 12.dp)
                     .fillMaxWidth()
-            }
+            }).hazeChild(state = hazeState, style = HazeMaterials.ultraThin())
         ) {
             MiniSpotifyPlayer(
                 playerState = spotifyState,
@@ -583,7 +597,7 @@ fun MapScreen(
                             )
                         }
 
-                        // Recenter on GPS location
+                        // Recenter on GPS location with satellite lock pulse
                         Box(
                             modifier = Modifier
                                 .size(44.dp)
@@ -597,6 +611,12 @@ fun MapScreen(
                                 imageVector = Icons.Default.MyLocation,
                                 contentDescription = "Recenter on Me",
                                 tint = Color(0xFF38BDF8)
+                            )
+                            CockpitPulseIndicator(
+                                isLocked = uiState.userLocation != null,
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(4.dp)
                             )
                         }
 
@@ -689,6 +709,12 @@ fun MapScreen(
                             imageVector = Icons.Default.MyLocation,
                             contentDescription = "Recenter on Me",
                             tint = Color(0xFF38BDF8)
+                        )
+                        CockpitPulseIndicator(
+                            isLocked = uiState.userLocation != null,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(4.dp)
                         )
                     }
 

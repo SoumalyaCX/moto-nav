@@ -119,7 +119,7 @@ class MainActivity : ComponentActivity() {
                 )
             }
 
-            MaterialTheme(colorScheme = colorScheme) {
+            com.motonav.ui.theme.MotoNavTheme(isDarkTheme = isDark) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

@@ -69,6 +69,10 @@ import com.motonav.ui.widgets.LeanAngleWidget
 import com.motonav.ui.widgets.OrientationLockButton
 import com.motonav.ui.widgets.ScreenOrientationLock
 import com.motonav.ui.widgets.SpeedIndicator
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.haze
+import dev.chrisbanes.haze.hazeChild
+import dev.chrisbanes.haze.materials.HazeMaterials
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.annotations.MarkerOptions
@@ -105,6 +109,7 @@ fun NavigationScreen(
     val navStatus by ferrostarBridge.navigationState.collectAsState()
     var isFrontFacing by remember { mutableStateOf(true) } // Motorcycle Front-Facing mode by default
     var isDrawerOpen by remember { mutableStateOf(false) }
+    val hazeState = remember { HazeState() }
 
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -122,7 +127,7 @@ fun NavigationScreen(
                     styleJson = styleJson,
                     isDarkTheme = isDarkTheme,
                     isFrontFacing = isFrontFacing,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize().haze(hazeState)
                 )
 
                 if (isLandscape) {
@@ -136,6 +141,7 @@ fun NavigationScreen(
                             .align(Alignment.TopStart)
                             .padding(start = 16.dp, top = 14.dp)
                             .width(310.dp)
+                            .hazeChild(state = hazeState, style = HazeMaterials.ultraThin())
                     ) {
                         ManeuverBanner(
                             maneuver = status.currentManeuver,
@@ -149,7 +155,8 @@ fun NavigationScreen(
                         modifier = Modifier
                             .align(Alignment.BottomStart)
                             .padding(start = 16.dp, bottom = 14.dp)
-                            .width(310.dp),
+                            .width(310.dp)
+                            .hazeChild(state = hazeState, style = HazeMaterials.ultraThin()),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         // WhatsApp Location Alert if received
@@ -230,6 +237,7 @@ fun NavigationScreen(
                                 modifier = Modifier
                                     .width(82.dp)
                                     .fillMaxHeight()
+                                    .hazeChild(state = hazeState, style = HazeMaterials.ultraThin())
                                     .clip(RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp))
                                     .background(Color(0xD90A0F1D))
                                     .border(
@@ -295,6 +303,7 @@ fun NavigationScreen(
                         modifier = Modifier
                             .align(Alignment.TopCenter)
                             .padding(horizontal = 16.dp, vertical = 14.dp)
+                            .hazeChild(state = hazeState, style = HazeMaterials.ultraThin())
                     ) {
                         ManeuverBanner(
                             maneuver = status.currentManeuver,
@@ -335,6 +344,7 @@ fun NavigationScreen(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
+                            .hazeChild(state = hazeState, style = HazeMaterials.ultraThin())
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
