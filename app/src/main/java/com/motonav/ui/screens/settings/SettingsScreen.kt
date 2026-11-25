@@ -308,9 +308,9 @@ fun SettingsScreen(
                 }
             }
 
-            // 4. WhatsApp Location Peek Permission
+            // 4. Spotify & WhatsApp Notification Access
             item {
-                SettingsCard(title = "💬 WhatsApp Location Link Peek") {
+                SettingsCard(title = "🎵 Spotify Singer & 💬 WhatsApp Peek") {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -319,13 +319,16 @@ fun SettingsScreen(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Notification Access",
+                                    text = "Android Notification Access",
                                     color = Color.White,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 15.sp
                                 )
                                 Text(
-                                    text = if (isWaPermissionGranted) "Active (Ready to peek location links)" else "Permission Required to read location links",
+                                    text = if (isWaPermissionGranted)
+                                        "Active (Spotify singer, album art & location links connected)"
+                                    else
+                                        "Required for Spotify singer name, album art & WhatsApp location links",
                                     color = if (isWaPermissionGranted) Color(0xFF10B981) else Color(0xFFF59E0B),
                                     fontSize = 13.sp
                                 )

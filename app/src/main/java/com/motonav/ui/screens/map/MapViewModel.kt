@@ -141,7 +141,14 @@ class MapViewModel @Inject constructor(
 
     fun onPoiSelected(poi: PoiEntity) {
         _uiState.value = _uiState.value.copy(selectedPoi = poi)
-        // Auto-calculate motorcycle route to selected POI
+    }
+
+    fun dismissPoiDetails() {
+        _uiState.value = _uiState.value.copy(selectedPoi = null)
+    }
+
+    fun rideToPoi(poi: PoiEntity) {
+        _uiState.value = _uiState.value.copy(selectedPoi = null)
         calculateRouteTo(LatLng(poi.latitude, poi.longitude))
     }
 

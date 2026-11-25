@@ -26,6 +26,7 @@
     <!-- Package Visibility Queries for Spotify and WhatsApp -->
     <queries>
         <package android:name="com.spotify.music" />
+        <package android:name="com.spotify.lite" />
         <package android:name="com.whatsapp" />
         <package android:name="com.whatsapp.w4b" />
     </queries>

@@ -230,8 +230,10 @@ class PoiRepository @Inject constructor(
                         osmVal in listOf("restaurant", "fast_food", "cafe", "dhaba") -> PoiCategory.DHABA.name
                         osmVal in listOf("motorcycle", "car_repair", "tyres", "repair") -> PoiCategory.MECHANIC.name
                         osmVal in listOf("viewpoint", "attraction", "peak") -> PoiCategory.VIEWPOINT.name
+                        osmKey == "shop" || osmVal in listOf("supermarket", "convenience", "general", "store", "mall") -> PoiCategory.STORE.name
+                        osmVal in listOf("hospital", "pharmacy", "clinic") -> PoiCategory.HOSPITAL.name
                         osmKey == "place" -> PoiCategory.CITY.name
-                        else -> "POI"
+                        else -> PoiCategory.STORE.name
                     }
 
                     val street = props.optString("street")
@@ -430,10 +432,12 @@ class PoiRepository @Inject constructor(
 
                     val category = when {
                         categoryStr.contains("gas") || categoryStr.contains("fuel") || text.lowercase().contains("petrol") -> PoiCategory.PETROL.name
-                        categoryStr.contains("restaurant") || categoryStr.contains("food") || text.lowercase().contains("dhaba") -> PoiCategory.DHABA.name
+                        categoryStr.contains("restaurant") || categoryStr.contains("food") || text.lowercase().contains("dhaba") || categoryStr.contains("cafe") -> PoiCategory.DHABA.name
                         categoryStr.contains("repair") || categoryStr.contains("auto") || text.lowercase().contains("mechanic") -> PoiCategory.MECHANIC.name
                         categoryStr.contains("viewpoint") || categoryStr.contains("attraction") -> PoiCategory.VIEWPOINT.name
-                        else -> PoiCategory.CITY.name
+                        categoryStr.contains("shop") || categoryStr.contains("store") || categoryStr.contains("grocery") || categoryStr.contains("supermarket") || categoryStr.contains("mall") -> PoiCategory.STORE.name
+                        categoryStr.contains("hospital") || categoryStr.contains("pharmacy") || categoryStr.contains("medical") -> PoiCategory.HOSPITAL.name
+                        else -> PoiCategory.STORE.name
                     }
 
                     list.add(
@@ -459,6 +463,183 @@ class PoiRepository @Inject constructor(
             Log.d(TAG, "Mapbox geocoding query failed: ${e.message}")
         }
         return list
+    }
+
+    /**
+     * Downloads and populates all real detailed stores, fuel hubs, dhabas, garages, and medical places
+     * for a downloaded state using Mapbox Places API, Overpass OSM, and regional datasets.
+     */
+    suspend fun populatePoisForRegion(
+        region: com.motonav.data.model.MapRegion,
+        onProgress: (String) -> Unit = {}
+    ): Int = withContext(Dispatchers.IO) {
+        val downloadedPois = mutableListOf<PoiEntity>()
+
+        // 1. If West Bengal, seed the comprehensive regional dataset first
+        if (region.id == "west_bengal") {
+            onProgress("Populating verified West Bengal district stores & hubs...")
+            try {
+                val seed = com.motonav.data.local.db.MotoNavDatabase.getWestBengalInitialPois()
+                poiDao.insertAll(seed)
+                downloadedPois.addAll(seed)
+            } catch (e: Exception) {
+                Log.w(TAG, "Seed POI insert error: ${e.message}")
+            }
+        }
+
+        // 2. Query Mapbox Places API for real stores & amenities across the state bounding box
+        if (ApiConfig.isMapboxConfigured) {
+            onProgress("Fetching detailed Mapbox stores & amenities for ${region.displayName}...")
+            val searchCategories = listOf("supermarket store", "grocery store", "gas station petrol", "dhaba restaurant", "motorcycle repair", "pharmacy hospital")
+            val token = ApiConfig.MAPBOX_ACCESS_TOKEN
+            for (queryTerm in searchCategories) {
+                try {
+                    val encoded = URLEncoder.encode(queryTerm, "UTF-8")
+                    val bboxStr = "${region.minLng},${region.minLat},${region.maxLng},${region.maxLat}"
+                    val urlStr = "https://api.mapbox.com/geocoding/v5/mapbox.places/$encoded.json?bbox=$bboxStr&types=poi,address&limit=25&access_token=$token"
+                    val conn = URL(urlStr).openConnection() as HttpURLConnection
+                    conn.connectTimeout = 4000
+                    conn.readTimeout = 4000
+                    conn.setRequestProperty("User-Agent", "MotoNav/1.0 (Android Motorcycle Navigation)")
+
+                    if (conn.responseCode == 200) {
+                        val body = conn.inputStream.bufferedReader().use { it.readText() }
+                        val json = JSONObject(body)
+                        val features = json.optJSONArray("features") ?: continue
+                        for (i in 0 until features.length()) {
+                            val feat = features.getJSONObject(i)
+                            val center = feat.optJSONArray("center") ?: continue
+                            val lng = center.getDouble(0)
+                            val lat = center.getDouble(1)
+                            val text = feat.optString("text")
+                            val placeName = feat.optString("place_name")
+
+                            val cat = when {
+                                queryTerm.contains("petrol") || queryTerm.contains("gas") -> PoiCategory.PETROL.name
+                                queryTerm.contains("dhaba") || queryTerm.contains("restaurant") -> PoiCategory.DHABA.name
+                                queryTerm.contains("repair") || queryTerm.contains("motorcycle") -> PoiCategory.MECHANIC.name
+                                queryTerm.contains("hospital") || queryTerm.contains("pharmacy") -> PoiCategory.HOSPITAL.name
+                                else -> PoiCategory.STORE.name
+                            }
+
+                            val poi = PoiEntity(
+                                osmId = 9000000L + downloadedPois.size + i,
+                                name = text,
+                                category = cat,
+                                latitude = lat,
+                                longitude = lng,
+                                brand = "Mapbox Verified",
+                                address = placeName,
+                                regionId = region.id
+                            )
+                            downloadedPois.add(poi)
+                        }
+                    } else if (conn.responseCode in listOf(402, 429, 401, 403)) {
+                        ApiConfig.markMapboxQuotaExceeded("State download HTTP ${conn.responseCode}")
+                        break
+                    }
+                } catch (e: Exception) {
+                    Log.d(TAG, "Mapbox bbox query error for $queryTerm: ${e.message}")
+                }
+            }
+        }
+
+        // 3. Query OpenStreetMap Overpass API for real retail stores and amenities in the bounding box
+        onProgress("Fetching OpenStreetMap shops, fuel, and roadside amenities...")
+        try {
+            val overpassQuery = """
+                [out:json][timeout:8];
+                (
+                  node["shop"](${region.minLat},${region.minLng},${region.maxLat},${region.maxLng});
+                  node["amenity"~"fuel|restaurant|cafe|pharmacy|hospital"](${region.minLat},${region.minLng},${region.maxLat},${region.maxLng});
+                );
+                out body 100;
+            """.trimIndent()
+
+            val conn = URL(OVERPASS_API).openConnection() as HttpURLConnection
+            conn.connectTimeout = 5000
+            conn.readTimeout = 6000
+            conn.requestMethod = "POST"
+            conn.doOutput = true
+            conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+            conn.outputStream.use { os ->
+                os.write("data=${URLEncoder.encode(overpassQuery, "UTF-8")}".toByteArray())
+            }
+
+            if (conn.responseCode == 200) {
+                val body = conn.inputStream.bufferedReader().use { it.readText() }
+                val json = JSONObject(body)
+                val elements = json.optJSONArray("elements")
+                if (elements != null) {
+                    for (i in 0 until elements.length()) {
+                        val elem = elements.getJSONObject(i)
+                        val id = elem.optLong("id")
+                        val lat = elem.optDouble("lat")
+                        val lon = elem.optDouble("lon")
+                        val tags = elem.optJSONObject("tags") ?: continue
+
+                        val name = tags.optString("name").takeIf { it.isNotBlank() }
+                            ?: tags.optString("brand").takeIf { it.isNotBlank() }
+                            ?: tags.optString("operator").takeIf { it.isNotBlank() }
+                            ?: continue
+
+                        val shopVal = tags.optString("shop")
+                        val amenityVal = tags.optString("amenity")
+
+                        val cat = when {
+                            amenityVal == "fuel" -> PoiCategory.PETROL.name
+                            amenityVal in listOf("restaurant", "cafe", "fast_food") -> PoiCategory.DHABA.name
+                            amenityVal in listOf("pharmacy", "hospital", "clinic") -> PoiCategory.HOSPITAL.name
+                            shopVal in listOf("motorcycle", "car_repair", "tyres") -> PoiCategory.MECHANIC.name
+                            shopVal.isNotBlank() -> PoiCategory.STORE.name
+                            else -> PoiCategory.STORE.name
+                        }
+
+                        val brand = tags.optString("brand").takeIf { it.isNotBlank() }
+                            ?: tags.optString("operator").takeIf { it.isNotBlank() }
+                        val street = tags.optString("addr:street")
+                        val city = tags.optString("addr:city")
+                        val phone = tags.optString("phone").takeIf { it.isNotBlank() }
+                            ?: tags.optString("contact:phone")
+                        val hours = tags.optString("opening_hours")
+
+                        val address = listOfNotNull(street.takeIf { it.isNotBlank() }, city.takeIf { it.isNotBlank() }).joinToString(", ")
+                            .ifBlank { brand ?: "${region.displayName}, India" }
+
+                        downloadedPois.add(
+                            PoiEntity(
+                                osmId = id,
+                                name = name,
+                                category = cat,
+                                latitude = lat,
+                                longitude = lon,
+                                brand = brand,
+                                address = address,
+                                phone = phone,
+                                openingHours = hours,
+                                regionId = region.id
+                            )
+                        )
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.d(TAG, "Overpass bbox query error: ${e.message}")
+        }
+
+        // 4. Batch insert all collected POIs into Room SQLite DB
+        if (downloadedPois.isNotEmpty()) {
+            onProgress("Saving ${downloadedPois.size} places into local offline storage...")
+            try {
+                poiDao.insertAll(downloadedPois)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to insert downloaded POIs: ${e.message}")
+            }
+        }
+
+        val totalCount = poiDao.getPoiCountByRegion(region.id)
+        onProgress("Ready! $totalCount stores & amenities available offline.")
+        totalCount
     }
 
     suspend fun getPoiCountForRegion(regionId: String): Int = withContext(Dispatchers.IO) {

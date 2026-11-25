@@ -78,6 +78,9 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var rideRepository: RideRepository
 
+    @Inject
+    lateinit var poiRepository: com.motonav.data.repository.PoiRepository
+
     private val requestPermissionsLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -225,6 +228,7 @@ class MainActivity : ComponentActivity() {
                             DownloadScreen(
                                 mapFileManager = mapFileManager,
                                 preferencesStore = preferencesStore,
+                                poiRepository = poiRepository,
                                 onBack = { currentScreen = Screen.MAP }
                             )
                         }

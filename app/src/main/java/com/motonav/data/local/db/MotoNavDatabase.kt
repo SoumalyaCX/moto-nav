@@ -14,7 +14,7 @@ import kotlinx.coroutines.launch
 
 @Database(
     entities = [PoiEntity::class, RideEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class MotoNavDatabase : RoomDatabase() {
@@ -45,7 +45,7 @@ abstract class MotoNavDatabase : RoomDatabase() {
             }
         }
 
-        private fun getWestBengalInitialPois(): List<PoiEntity> {
+        fun getWestBengalInitialPois(): List<PoiEntity> {
             return listOf(
                 // Major Towns & Motorcycle Hubs (including Purulia, Kolaghat, etc.)
                 PoiEntity(
@@ -393,6 +393,255 @@ abstract class MotoNavDatabase : RoomDatabase() {
                     brand = "Scenic Stop",
                     address = "Tiger Hill Rd, Darjeeling",
                     openingHours = "04:00-18:00",
+                    regionId = "west_bengal"
+                ),
+                // Detailed Stores, Supermarkets & Roadside General Shops in West Bengal
+                PoiEntity(
+                    osmId = 10035L,
+                    name = "Spencer's Hyper Store (South City Mall)",
+                    category = PoiCategory.STORE.name,
+                    latitude = 22.5020,
+                    longitude = 88.3620,
+                    brand = "Spencer's Retail",
+                    address = "South City Mall, Prince Anwar Shah Rd, Kolkata",
+                    openingHours = "10:00 - 22:00",
+                    phone = "+91 33 4007 2000",
+                    regionId = "west_bengal"
+                ),
+                PoiEntity(
+                    osmId = 10036L,
+                    name = "More Supermarket (Salt Lake Sector 1)",
+                    category = PoiCategory.STORE.name,
+                    latitude = 22.5890,
+                    longitude = 88.4080,
+                    brand = "More Retail",
+                    address = "Block BD, Sector 1, Bidhannagar, Kolkata",
+                    openingHours = "08:00 - 22:00",
+                    phone = "+91 33 2337 1100",
+                    regionId = "west_bengal"
+                ),
+                PoiEntity(
+                    osmId = 10037L,
+                    name = "Smart Bazaar (City Centre 2, Rajarhat)",
+                    category = PoiCategory.STORE.name,
+                    latitude = 22.6240,
+                    longitude = 88.4520,
+                    brand = "Reliance Retail",
+                    address = "City Centre 2, New Town, Rajarhat",
+                    openingHours = "09:00 - 22:30",
+                    phone = "+91 33 2526 8000",
+                    regionId = "west_bengal"
+                ),
+                PoiEntity(
+                    osmId = 10038L,
+                    name = "Dankuni Highway Convenience & Departmental Store",
+                    category = PoiCategory.STORE.name,
+                    latitude = 22.6820,
+                    longitude = 88.2930,
+                    brand = "Highway Stop Mart",
+                    address = "NH 19, Dankuni Crossing, Hooghly",
+                    openingHours = "24/7",
+                    phone = "+91 98301 23456",
+                    regionId = "west_bengal"
+                ),
+                PoiEntity(
+                    osmId = 10039L,
+                    name = "Kolaghat NH16 Express Mart & Daily Needs",
+                    category = PoiCategory.STORE.name,
+                    latitude = 22.4290,
+                    longitude = 87.8720,
+                    brand = "Bikers Mart",
+                    address = "NH 16 Kolaghat Bypass, Purba Medinipur",
+                    openingHours = "24/7",
+                    phone = "+91 94340 88211",
+                    regionId = "west_bengal"
+                ),
+                PoiEntity(
+                    osmId = 10040L,
+                    name = "Keventers Heritage Cafe & Store (Darjeeling)",
+                    category = PoiCategory.DHABA.name,
+                    latitude = 27.0425,
+                    longitude = 88.2650,
+                    brand = "Heritage Biker Cafe",
+                    address = "1 Nehru Road, Chowrasta, Darjeeling",
+                    openingHours = "07:30 - 19:30",
+                    phone = "+91 354 225 2026",
+                    regionId = "west_bengal"
+                ),
+                PoiEntity(
+                    osmId = 10041L,
+                    name = "Glenary's Bakery & Cafe (Mall Road)",
+                    category = PoiCategory.DHABA.name,
+                    latitude = 27.0430,
+                    longitude = 88.2655,
+                    brand = "Glenary's",
+                    address = "Nehru Road, Darjeeling",
+                    openingHours = "07:00 - 21:00",
+                    phone = "+91 354 225 4059",
+                    regionId = "west_bengal"
+                ),
+                PoiEntity(
+                    osmId = 10042L,
+                    name = "Siliguri Sevoke Road Central Mart & Spares",
+                    category = PoiCategory.STORE.name,
+                    latitude = 26.7290,
+                    longitude = 88.3970,
+                    brand = "Sevoke Mart",
+                    address = "Sevoke Road, Siliguri, Darjeeling",
+                    openingHours = "08:30 - 22:00",
+                    phone = "+91 353 253 1001",
+                    regionId = "west_bengal"
+                ),
+                PoiEntity(
+                    osmId = 10043L,
+                    name = "Durgapur Junction Mall & Reliance Mart",
+                    category = PoiCategory.STORE.name,
+                    latitude = 23.5350,
+                    longitude = 87.2920,
+                    brand = "Junction Mall",
+                    address = "City Centre, Durgapur, Paschim Bardhaman",
+                    openingHours = "10:00 - 21:30",
+                    phone = "+91 343 254 9900",
+                    regionId = "west_bengal"
+                ),
+                PoiEntity(
+                    osmId = 10044L,
+                    name = "Asansol Galaxy Mall & Superstore",
+                    category = PoiCategory.STORE.name,
+                    latitude = 23.6820,
+                    longitude = 86.9610,
+                    brand = "Galaxy Mall",
+                    address = "Burnpur Road, Asansol",
+                    openingHours = "10:00 - 22:00",
+                    phone = "+91 341 225 3300",
+                    regionId = "west_bengal"
+                ),
+                PoiEntity(
+                    osmId = 10045L,
+                    name = "Purulia District Supermarket & Store",
+                    category = PoiCategory.STORE.name,
+                    latitude = 23.3340,
+                    longitude = 86.3680,
+                    brand = "Town Bazaar",
+                    address = "Main Road, Purulia Town",
+                    openingHours = "08:00 - 21:00",
+                    phone = "+91 97320 11223",
+                    regionId = "west_bengal"
+                ),
+                PoiEntity(
+                    osmId = 10046L,
+                    name = "Baghmundi Hills Daily Needs & Tea Stall",
+                    category = PoiCategory.STORE.name,
+                    latitude = 23.2050,
+                    longitude = 86.0520,
+                    brand = "Ayodhya Foothills",
+                    address = "Baghmundi Bazar, Purulia",
+                    openingHours = "06:00 - 21:00",
+                    regionId = "west_bengal"
+                ),
+                PoiEntity(
+                    osmId = 10047L,
+                    name = "Apollo Pharmacy 24/7 (Kolkata Park Street)",
+                    category = PoiCategory.HOSPITAL.name,
+                    latitude = 22.5535,
+                    longitude = 88.3540,
+                    brand = "Apollo Pharmacy",
+                    address = "Park Street, Kolkata",
+                    openingHours = "24/7",
+                    phone = "+91 33 2229 1111",
+                    regionId = "west_bengal"
+                ),
+                PoiEntity(
+                    osmId = 10048L,
+                    name = "Midnapore City Bazaar & Groceries",
+                    category = PoiCategory.STORE.name,
+                    latitude = 22.4265,
+                    longitude = 87.3210,
+                    brand = "Local Store",
+                    address = "Golkuan Chowk, Midnapore Town",
+                    openingHours = "08:00 - 21:30",
+                    regionId = "west_bengal"
+                ),
+                PoiEntity(
+                    osmId = 10049L,
+                    name = "Kharagpur Technology Market (IIT Campus)",
+                    category = PoiCategory.STORE.name,
+                    latitude = 22.3180,
+                    longitude = 87.3090,
+                    brand = "Tech Market",
+                    address = "IIT Kharagpur Campus, Paschim Medinipur",
+                    openingHours = "08:00 - 22:00",
+                    phone = "+91 3222 282 000",
+                    regionId = "west_bengal"
+                ),
+                PoiEntity(
+                    osmId = 10050L,
+                    name = "Burdwan Curzon Gate Departmental Store",
+                    category = PoiCategory.STORE.name,
+                    latitude = 23.2350,
+                    longitude = 87.8630,
+                    brand = "Heritage Store",
+                    address = "GT Road, Curzon Gate, Bardhaman",
+                    openingHours = "09:00 - 21:00",
+                    regionId = "west_bengal"
+                ),
+                PoiEntity(
+                    osmId = 10051L,
+                    name = "Azad Hind Dhaba (NH16 Uluberia)",
+                    category = PoiCategory.DHABA.name,
+                    latitude = 22.4820,
+                    longitude = 88.1120,
+                    brand = "Azad Hind",
+                    address = "NH 16, Uluberia Highway, Howrah",
+                    openingHours = "24/7",
+                    phone = "+91 33 2661 5000",
+                    regionId = "west_bengal"
+                ),
+                PoiEntity(
+                    osmId = 10052L,
+                    name = "Hindustan Dhaba & Family Restaurant (NH19)",
+                    category = PoiCategory.DHABA.name,
+                    latitude = 23.2100,
+                    longitude = 87.8900,
+                    brand = "Hindustan Dhaba",
+                    address = "NH 19, Palsit Toll Plaza, Bardhaman",
+                    openingHours = "24/7",
+                    phone = "+91 94341 55667",
+                    regionId = "west_bengal"
+                ),
+                PoiEntity(
+                    osmId = 10053L,
+                    name = "Hero MotoCorp Authorized Workshop & Spares",
+                    category = PoiCategory.MECHANIC.name,
+                    latitude = 22.6100,
+                    longitude = 88.3750,
+                    brand = "Hero MotoCorp",
+                    address = "Belgachia Road, Kolkata",
+                    openingHours = "09:00 - 19:00",
+                    phone = "+91 33 2556 4000",
+                    regionId = "west_bengal"
+                ),
+                PoiEntity(
+                    osmId = 10054L,
+                    name = "Bajaj & KTM Service Point (Durgapur)",
+                    category = PoiCategory.MECHANIC.name,
+                    latitude = 23.5180,
+                    longitude = 87.3150,
+                    brand = "Bajaj / KTM",
+                    address = "Nachan Road, Benachity, Durgapur",
+                    openingHours = "09:30 - 19:30",
+                    phone = "+91 343 258 7766",
+                    regionId = "west_bengal"
+                ),
+                PoiEntity(
+                    osmId = 10055L,
+                    name = "Old Digha Sea Beach Roadside Mart & Fish Stalls",
+                    category = PoiCategory.STORE.name,
+                    latitude = 21.6280,
+                    longitude = 87.5090,
+                    brand = "Beachside Market",
+                    address = "Sea Beach Road, Digha",
+                    openingHours = "07:00 - 23:00",
                     regionId = "west_bengal"
                 )
             )

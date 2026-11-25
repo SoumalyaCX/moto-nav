@@ -72,9 +72,16 @@ class WANotificationService : NotificationListenerService() {
         val notification = sbn.notification ?: return
         val extras = notification.extras ?: return
 
-        // 1. Check for Spotify Music Player notification
-        if (sbn.packageName == SPOTIFY_PACKAGE) {
-            handleSpotifyNotification(notification, extras)
+        // 1. Check for Spotify or any Media Player notification
+        val isSpotify = sbn.packageName.contains("spotify", ignoreCase = true)
+        val hasMediaSession = extras.containsKey(Notification.EXTRA_MEDIA_SESSION)
+        val hasPlaybackActions = notification.actions?.any { action ->
+            val t = action.title?.toString()?.lowercase() ?: ""
+            t.contains("play") || t.contains("pause") || t.contains("skip") || t.contains("next")
+        } == true
+
+        if (isSpotify || hasMediaSession || hasPlaybackActions) {
+            handleSpotifyNotification(sbn.packageName, notification, extras)
             return
         }
 
@@ -84,13 +91,51 @@ class WANotificationService : NotificationListenerService() {
         }
     }
 
-    private fun handleSpotifyNotification(notification: Notification, extras: android.os.Bundle) {
+    private fun handleSpotifyNotification(packageName: String, notification: Notification, extras: android.os.Bundle) {
         try {
-            val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
+            val sessionToken: MediaSession.Token? = try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    extras.getParcelable(Notification.EXTRA_MEDIA_SESSION, MediaSession.Token::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    extras.getParcelable(Notification.EXTRA_MEDIA_SESSION)
+                }
+            } catch (e: Exception) {
+                null
+            }
+
+            var controllerArtist: String? = null
+            var controllerTitle: String? = null
+            var controllerArt: Bitmap? = null
+
+            if (sessionToken != null) {
+                try {
+                    val mediaController = android.media.session.MediaController(this, sessionToken)
+                    val metadata = mediaController.metadata
+                    if (metadata != null) {
+                        controllerArtist = metadata.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST)
+                            ?: metadata.getString(android.media.MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
+                            ?: metadata.getString(android.media.MediaMetadata.METADATA_KEY_AUTHOR)
+                            ?: metadata.getString(android.media.MediaMetadata.METADATA_KEY_COMPOSER)
+                            ?: metadata.getString(android.media.MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE)
+
+                        controllerTitle = metadata.getString(android.media.MediaMetadata.METADATA_KEY_TITLE)
+                            ?: metadata.getString(android.media.MediaMetadata.METADATA_KEY_DISPLAY_TITLE)
+
+                        controllerArt = metadata.getBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART)
+                            ?: metadata.getBitmap(android.media.MediaMetadata.METADATA_KEY_ART)
+                            ?: metadata.getBitmap(android.media.MediaMetadata.METADATA_KEY_DISPLAY_ICON)
+                    }
+                } catch (ignored: Exception) {}
+            }
+
+            val title = controllerTitle
+                ?: extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
                 ?: extras.getCharSequence("android.title")?.toString()
                 ?: extras.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)?.toString()
 
-            val rawArtist = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
+            val rawArtist = controllerArtist
+                ?: extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
                 ?: extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString()
                 ?: extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()
                 ?: extras.getCharSequence(Notification.EXTRA_INFO_TEXT)?.toString()
@@ -105,32 +150,33 @@ class WANotificationService : NotificationListenerService() {
                 } else null
             } else rawArtist
 
-            val albumArt: Bitmap? = try {
+            val targetContext = try {
+                createPackageContext(packageName, 0)
+            } catch (_: Exception) {
+                this
+            }
+
+            val albumArt: Bitmap? = controllerArt ?: try {
                 val direct = extras.get(Notification.EXTRA_LARGE_ICON)
                     ?: extras.get(Notification.EXTRA_LARGE_ICON_BIG)
                     ?: extras.get(Notification.EXTRA_PICTURE)
                 when (direct) {
                     is Bitmap -> direct
                     is android.graphics.drawable.Icon -> {
-                        try { direct.loadDrawable(this)?.toBitmap() } catch (_: Exception) { null }
+                        try { direct.loadDrawable(targetContext)?.toBitmap() }
+                        catch (_: Exception) {
+                            try { direct.loadDrawable(this)?.toBitmap() } catch (_: Exception) { null }
+                        }
                     }
                     else -> {
-                        try { notification.getLargeIcon()?.loadDrawable(this)?.toBitmap() } catch (_: Exception) { null }
+                        try { notification.getLargeIcon()?.loadDrawable(targetContext)?.toBitmap() }
+                        catch (_: Exception) {
+                            try { notification.getLargeIcon()?.loadDrawable(this)?.toBitmap() } catch (_: Exception) { null }
+                        }
                     }
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Failed extracting album art: ${e.message}")
-                null
-            }
-
-            val sessionToken: MediaSession.Token? = try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    extras.getParcelable(Notification.EXTRA_MEDIA_SESSION, MediaSession.Token::class.java)
-                } else {
-                    @Suppress("DEPRECATION")
-                    extras.getParcelable(Notification.EXTRA_MEDIA_SESSION)
-                }
-            } catch (e: Exception) {
                 null
             }
 

@@ -80,6 +80,7 @@ import com.motonav.integrations.whatsapp.WALocationPeekWidget
 import com.motonav.map.MapStyleManager
 import com.motonav.ui.screens.map.components.MapSearchBar
 import com.motonav.ui.screens.map.components.PoiQuickFilters
+import com.motonav.ui.screens.map.components.PoiDetailCard
 import com.motonav.navigation.GpxParser
 import com.motonav.ui.widgets.BatteryWidget
 import com.motonav.ui.widgets.CompassWidget
@@ -153,6 +154,7 @@ fun MapScreen(
             recenterTrigger = recenterTrigger,
             isFrontFacing = isFrontFacing,
             onPoiClicked = { viewModel.onPoiSelected(it) },
+            onDismissPoi = { viewModel.dismissPoiDetails() },
             modifier = Modifier.fillMaxSize()
         )
 
@@ -222,6 +224,8 @@ fun MapScreen(
                                             "PETROL" -> "⛽"
                                             "DHABA", "RESTAURANT" -> "🍛"
                                             "MECHANIC" -> "🔧"
+                                            "STORE" -> "🛒"
+                                            "HOSPITAL" -> "🏥"
                                             "VIEWPOINT" -> "🏔️"
                                             else -> "📍"
                                         }
@@ -260,9 +264,36 @@ fun MapScreen(
             }
         }
 
-        // 3. Calculated Route Overview Card
+        // 3a. Interactive POI / Shop Detail Card (shown when user taps any shop or map marker)
         AnimatedVisibility(
-            visible = uiState.calculatedRoute != null,
+            visible = uiState.selectedPoi != null,
+            enter = fadeIn() + slideInVertically { it },
+            exit = fadeOut() + slideOutVertically { it },
+            modifier = if (isLandscape) {
+                Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 16.dp, bottom = 86.dp)
+                    .width(360.dp)
+            } else {
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(start = 16.dp, end = 16.dp, bottom = 86.dp)
+                    .fillMaxWidth()
+            }
+        ) {
+            uiState.selectedPoi?.let { poi ->
+                PoiDetailCard(
+                    poi = poi,
+                    userLocation = uiState.userLocation,
+                    onRideHere = { viewModel.rideToPoi(it) },
+                    onDismiss = { viewModel.dismissPoiDetails() }
+                )
+            }
+        }
+
+        // 3b. Calculated Route Overview Card
+        AnimatedVisibility(
+            visible = uiState.calculatedRoute != null && uiState.selectedPoi == null,
             enter = fadeIn() + slideInVertically { it },
             exit = fadeOut() + slideOutVertically { it },
             modifier = if (isLandscape) {
@@ -705,6 +736,7 @@ fun MapViewportCanvas(
     recenterTrigger: Int,
     isFrontFacing: Boolean = false,
     onPoiClicked: (com.motonav.data.local.db.entities.PoiEntity) -> Unit = {},
+    onDismissPoi: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -757,6 +789,36 @@ fun MapViewportCanvas(
                     map.uiSettings.isLogoEnabled = false
                     map.uiSettings.isAttributionEnabled = false
 
+                    map.setOnMarkerClickListener { marker ->
+                        val title = marker.title
+                        val pos = marker.position
+                        val clickedPoi = uiState.nearbyPois.firstOrNull { poi ->
+                            (Math.abs(poi.latitude - pos.latitude) < 0.0003 && Math.abs(poi.longitude - pos.longitude) < 0.0003) ||
+                                    (title != null && title.contains(poi.name))
+                        }
+                        if (clickedPoi != null) {
+                            onPoiClicked(clickedPoi)
+                            true
+                        } else {
+                            false
+                        }
+                    }
+
+                    map.addOnMapClickListener { clickLatLng ->
+                        val nearby = uiState.nearbyPois.firstOrNull { poi ->
+                            val dLat = Math.abs(poi.latitude - clickLatLng.latitude)
+                            val dLng = Math.abs(poi.longitude - clickLatLng.longitude)
+                            dLat < 0.0012 && dLng < 0.0012
+                        }
+                        if (nearby != null) {
+                            onPoiClicked(nearby)
+                            true
+                        } else {
+                            onDismissPoi()
+                            false
+                        }
+                    }
+
                     loadStyleWithFallback(map, mapView, resolvedStyle) {
                         loadedStyleKey = resolvedStyle
                         isMapReady = true
@@ -768,6 +830,36 @@ fun MapViewportCanvas(
         modifier = modifier,
         update = { _ ->
             val map = mapInstance ?: return@AndroidView
+
+            map.setOnMarkerClickListener { marker ->
+                val title = marker.title
+                val pos = marker.position
+                val clickedPoi = uiState.nearbyPois.firstOrNull { poi ->
+                    (Math.abs(poi.latitude - pos.latitude) < 0.0003 && Math.abs(poi.longitude - pos.longitude) < 0.0003) ||
+                            (title != null && title.contains(poi.name))
+                }
+                if (clickedPoi != null) {
+                    onPoiClicked(clickedPoi)
+                    true
+                } else {
+                    false
+                }
+            }
+
+            map.addOnMapClickListener { clickLatLng ->
+                val nearby = uiState.nearbyPois.firstOrNull { poi ->
+                    val dLat = Math.abs(poi.latitude - clickLatLng.latitude)
+                    val dLng = Math.abs(poi.longitude - clickLatLng.longitude)
+                    dLat < 0.0012 && dLng < 0.0012
+                }
+                if (nearby != null) {
+                    onPoiClicked(nearby)
+                    true
+                } else {
+                    onDismissPoi()
+                    false
+                }
+            }
 
             if (loadedStyleKey != resolvedStyle) {
                 isMapReady = false
@@ -912,18 +1004,22 @@ private fun updateMapCameraAndLayers(
     }
 
     // Draw POIs
-    uiState.nearbyPois.take(15).forEach { poi ->
+    uiState.nearbyPois.take(50).forEach { poi ->
+        val isSelected = uiState.selectedPoi?.osmId == poi.osmId
         val emoji = when (poi.category) {
             "PETROL" -> "⛽"
             "DHABA", "RESTAURANT" -> "🍛"
             "MECHANIC" -> "🔧"
+            "STORE" -> "🛒"
+            "HOSPITAL" -> "🏥"
             "VIEWPOINT" -> "🏔️"
             else -> "📍"
         }
+        val prefix = if (isSelected) "⭐ " else ""
         map.addMarker(
             MarkerOptions()
                 .position(MapLibreLatLng(poi.latitude, poi.longitude))
-                .title("$emoji ${poi.name}")
+                .title("$prefix$emoji ${poi.name}")
                 .snippet(poi.address ?: poi.brand ?: "")
         )
     }

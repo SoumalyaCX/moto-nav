@@ -147,7 +147,7 @@ class SpotifyRemoteManager @Inject constructor(
         try {
             val component = ComponentName(context, WANotificationService::class.java)
             sessionManager.addOnActiveSessionsChangedListener({ controllers ->
-                val spotifyController = controllers?.firstOrNull { it.packageName == SPOTIFY_PACKAGE_NAME }
+                val spotifyController = controllers?.firstOrNull { it.packageName.contains("spotify", ignoreCase = true) }
                     ?: controllers?.firstOrNull()
                 if (spotifyController != null) {
                     attachMediaSession(spotifyController)
@@ -315,7 +315,7 @@ class SpotifyRemoteManager @Inject constructor(
         try {
             val component = ComponentName(context, WANotificationService::class.java)
             val controllers = sessionManager.getActiveSessions(component)
-            val spotifyController = controllers.firstOrNull { it.packageName == SPOTIFY_PACKAGE_NAME }
+            val spotifyController = controllers.firstOrNull { it.packageName.contains("spotify", ignoreCase = true) }
                 ?: controllers.firstOrNull()
 
             if (spotifyController != null) {

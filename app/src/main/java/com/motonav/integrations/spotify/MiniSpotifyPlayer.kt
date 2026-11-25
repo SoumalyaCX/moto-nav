@@ -48,9 +48,17 @@ fun MiniSpotifyPlayer(
     onOpenSpotify: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var hasNotificationAccess by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(
+            com.motonav.integrations.whatsapp.WANotificationService.isNotificationAccessGranted(context)
+        )
+    }
+
     val displayTitle = playerState.trackTitle.takeIf { it.isNotBlank() } ?: "No music playing"
     val displayArtist = when {
         playerState.artistName.isNotBlank() -> playerState.artistName
+        !hasNotificationAccess -> "⚠️ Tap to enable Singer & Art"
         playerState.isPlaying -> "Spotify Music"
         else -> "Open Spotify"
     }
@@ -120,12 +128,25 @@ fun MiniSpotifyPlayer(
                 }
             }
 
-            // Track & Artist/Singer Information (Clickable to open Spotify)
+            // Track & Artist/Singer Information (Clickable to open Spotify or Grant Notification Access)
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = 12.dp)
-                    .clickable { onOpenSpotify() }
+                    .clickable {
+                        if (!hasNotificationAccess) {
+                            try {
+                                val intent = com.motonav.integrations.whatsapp.WANotificationService.getNotificationSettingsIntent().apply {
+                                    flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                                }
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                onOpenSpotify()
+                            }
+                        } else {
+                            onOpenSpotify()
+                        }
+                    }
             ) {
                 Text(
                     text = displayTitle,
@@ -138,7 +159,7 @@ fun MiniSpotifyPlayer(
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = displayArtist,
-                    color = Color(0xFF1DB954), // Spotify green accent
+                    color = if (!hasNotificationAccess) Color(0xFFFBBF24) else Color(0xFF1DB954),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,

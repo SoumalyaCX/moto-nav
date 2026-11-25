@@ -14,6 +14,7 @@ enum class PoiCategory {
     HOTEL,
     VIEWPOINT,
     WATER,
+    STORE,
     CITY
 }
 
@@ -37,5 +38,6 @@ data class PoiEntity(
     val address: String? = null,
     val phone: String? = null,
     val openingHours: String? = null,
-    val regionId: String = "west_bengal"
+    val regionId: String = "west_bengal",
+    val imageUrl: String? = null
 )

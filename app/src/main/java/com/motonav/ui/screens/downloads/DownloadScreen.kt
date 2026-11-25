@@ -23,12 +23,15 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -43,18 +46,32 @@ import com.motonav.data.local.MapFileManager
 import com.motonav.data.local.PreferencesStore
 import com.motonav.data.model.MapRegion
 import com.motonav.data.model.RegionStatus
+import com.motonav.data.repository.PoiRepository
 import kotlinx.coroutines.launch
 
 @Composable
 fun DownloadScreen(
     mapFileManager: MapFileManager,
     preferencesStore: PreferencesStore,
+    poiRepository: PoiRepository,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
     var regions by remember { mutableStateOf(mapFileManager.getInstalledRegions()) }
     val activeRegionId by preferencesStore.activeRegionIdFlow.collectAsState(initial = MapFileManager.PREPACKAGED_REGION_ID)
+
+    var downloadingRegionId by remember { mutableStateOf<String?>(null) }
+    var downloadStatusText by remember { mutableStateOf("") }
+    val poiCounts = remember { mutableStateMapOf<String, Int>() }
+
+    // Load initial POI counts for installed regions
+    LaunchedEffect(regions) {
+        regions.forEach { reg ->
+            val count = poiRepository.getPoiCountForRegion(reg.id)
+            if (count > 0) poiCounts[reg.id] = count
+        }
+    }
 
     val freeSpaceGb = String.format("%.1f GB", mapFileManager.getAvailableStorageBytes() / (1024.0 * 1024.0 * 1024.0))
 
@@ -81,16 +98,47 @@ fun DownloadScreen(
             Spacer(modifier = Modifier.width(8.dp))
             Column {
                 Text(
-                    text = "Offline Map Regions",
+                    text = "Offline State Regions",
                     color = Color.White,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "Free Device Storage: $freeSpaceGb",
+                    text = "Free Storage: $freeSpaceGb · Mapbox & OSM Places",
                     color = Color(0xFF38BDF8),
                     fontSize = 12.sp
                 )
+            }
+        }
+
+        // Live Download Progress Banner if active
+        if (downloadingRegionId != null) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = Color(0xFF38BDF8),
+                        strokeWidth = 2.5.dp
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = downloadStatusText.ifBlank { "Downloading map and stores..." },
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
         }
 
@@ -99,18 +147,38 @@ fun DownloadScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(regions) { region ->
+                val isDownloading = downloadingRegionId == region.id
+                val poiCount = poiCounts[region.id] ?: 0
+
                 RegionDownloadCard(
                     region = region,
                     isActive = region.id == activeRegionId,
+                    isDownloading = isDownloading,
+                    poiCount = poiCount,
                     onSelectActive = {
                         scope.launch {
                             preferencesStore.setActiveRegionId(region.id)
                         }
                     },
                     onDownload = {
-                        // Simulate download completion for on-demand state
-                        regions = regions.map {
-                            if (it.id == region.id) it.copy(status = RegionStatus.DOWNLOADED, downloadProgressPercent = 100) else it
+                        scope.launch {
+                            downloadingRegionId = region.id
+                            downloadStatusText = "Downloading vector tiles for ${region.displayName}..."
+
+                            // Extract / create offline files
+                            mapFileManager.ensurePrepackagedRegionExtracted()
+
+                            // Populate real stores, fuel hubs, and amenities via Mapbox & OSM
+                            val count = poiRepository.populatePoisForRegion(region) { status ->
+                                downloadStatusText = status
+                            }
+                            poiCounts[region.id] = count
+
+                            regions = regions.map {
+                                if (it.id == region.id) it.copy(status = RegionStatus.DOWNLOADED, downloadProgressPercent = 100) else it
+                            }
+                            downloadingRegionId = null
+                            downloadStatusText = ""
                         }
                     }
                 )
@@ -123,6 +191,8 @@ fun DownloadScreen(
 fun RegionDownloadCard(
     region: MapRegion,
     isActive: Boolean,
+    isDownloading: Boolean = false,
+    poiCount: Int = 0,
     onSelectActive: () -> Unit,
     onDownload: () -> Unit
 ) {
@@ -155,14 +225,21 @@ fun RegionDownloadCard(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = "Size: ~${region.approxSizeMb} MB · Vector tiles + Motorcycle routing graph + POIs",
+                    text = "Size: ~${region.approxSizeMb} MB · Mapbox vector tiles + Routing + Stores",
                     color = Color.LightGray,
                     fontSize = 12.sp
                 )
 
-                if (region.isPrepackaged) {
+                if (poiCount > 0) {
                     Text(
-                        text = "⭐ Pre-Packaged Regional Bundle",
+                        text = "🛒 $poiCount stores, fuel & amenities offline",
+                        color = Color(0xFF38BDF8),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                } else if (region.isPrepackaged) {
+                    Text(
+                        text = "⭐ Pre-Packaged Regional Bundle (Stores & Amenities Ready)",
                         color = Color(0xFFFBBF24),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
@@ -172,7 +249,13 @@ fun RegionDownloadCard(
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            if (isInstalled) {
+            if (isDownloading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(28.dp),
+                    color = Color(0xFF38BDF8),
+                    strokeWidth = 2.5.dp
+                )
+            } else if (isInstalled) {
                 if (isActive) {
                     Box(
                         modifier = Modifier
