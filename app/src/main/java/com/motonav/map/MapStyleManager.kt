@@ -238,9 +238,55 @@ class MapStyleManager @Inject constructor(
               "filter": ["==", "subclass", "fuel"],
               "paint": {
                 "circle-radius": 6,
-                "circle-color": "#10B981",
+                "circle-color": "#F59E0B",
                 "circle-stroke-width": 2,
                 "circle-stroke-color": "#FFFFFF"
+              }
+            },
+            {
+              "id": "poi_temples_attractions",
+              "type": "circle",
+              "source": "openmaptiles",
+              "source-layer": "poi",
+              "filter": ["in", "class", "place_of_worship", "attraction", "monument", "historic"],
+              "minzoom": 13,
+              "paint": {
+                "circle-radius": 5.5,
+                "circle-color": "#A855F7",
+                "circle-stroke-width": 1.5,
+                "circle-stroke-color": "#FFFFFF"
+              }
+            },
+            {
+              "id": "poi_shops_markets",
+              "type": "circle",
+              "source": "openmaptiles",
+              "source-layer": "poi",
+              "filter": ["in", "class", "shop", "grocery", "mall", "marketplace"],
+              "minzoom": 14,
+              "paint": {
+                "circle-radius": 5.0,
+                "circle-color": "#10B981",
+                "circle-stroke-width": 1.5,
+                "circle-stroke-color": "#FFFFFF"
+              }
+            },
+            {
+              "id": "poi_vector_labels",
+              "type": "symbol",
+              "source": "openmaptiles",
+              "source-layer": "poi",
+              "minzoom": 14,
+              "layout": {
+                "text-field": "{name}",
+                "text-size": ["interpolate", ["linear"], ["zoom"], 14, 10, 16, 12],
+                "text-offset": [0, 1.2],
+                "text-anchor": "top"
+              },
+              "paint": {
+                "text-color": "$textColor",
+                "text-halo-color": "$textHalo",
+                "text-halo-width": 2.0
               }
             }
           ]

@@ -1248,8 +1248,8 @@ private fun updateMapCameraAndLayers(
         }
     }
 
-    // Draw POIs with rich density and accurate category iconography (up to 160 simultaneous places)
-    uiState.nearbyPois.take(160).forEach { poi ->
+    // Draw POIs with rich Google Maps density and accurate category iconography (up to 350 simultaneous places)
+    uiState.nearbyPois.take(350).forEach { poi ->
         val isSelected = uiState.selectedPoi?.osmId == poi.osmId
         val emoji = com.motonav.data.model.CategoryResolver.getCategoryInfo(poi.category).emoji
         val prefix = if (isSelected) "⭐ " else ""

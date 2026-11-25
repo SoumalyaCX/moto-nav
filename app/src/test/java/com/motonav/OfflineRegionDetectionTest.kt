@@ -63,4 +63,53 @@ class OfflineRegionDetectionTest {
             )
         }
     }
+
+    @Test
+    fun testCategoryResolutionForDiversePois() {
+        // Temples & Places of Worship
+        assertEquals(
+            com.motonav.data.local.db.entities.PoiCategory.TEMPLE.name,
+            com.motonav.data.model.CategoryResolver.resolve("Dakshineswar Kali Temple")
+        )
+        assertEquals(
+            com.motonav.data.local.db.entities.PoiCategory.TEMPLE.name,
+            com.motonav.data.model.CategoryResolver.resolve("Belur Math")
+        )
+
+        // Local Shops, Bazaars & Sweets
+        assertEquals(
+            com.motonav.data.local.db.entities.PoiCategory.STORE.name,
+            com.motonav.data.model.CategoryResolver.resolve("New Market")
+        )
+        assertEquals(
+            com.motonav.data.local.db.entities.PoiCategory.STORE.name,
+            com.motonav.data.model.CategoryResolver.resolve("Bhim Chandra Nag Sweets")
+        )
+
+        // Popular Landmarks & Attractions
+        assertEquals(
+            com.motonav.data.local.db.entities.PoiCategory.ATTRACTION.name,
+            com.motonav.data.model.CategoryResolver.resolve("Victoria Memorial")
+        )
+        assertEquals(
+            com.motonav.data.local.db.entities.PoiCategory.ATTRACTION.name,
+            com.motonav.data.model.CategoryResolver.resolve("Howrah Bridge")
+        )
+
+        // Viewpoints
+        assertEquals(
+            com.motonav.data.local.db.entities.PoiCategory.VIEWPOINT.name,
+            com.motonav.data.model.CategoryResolver.resolve("Tiger Hill Sunrise Point")
+        )
+
+        // Streets & Avenues
+        assertEquals(
+            com.motonav.data.local.db.entities.PoiCategory.CITY.name,
+            com.motonav.data.model.CategoryResolver.resolve("Park Street")
+        )
+        assertEquals(
+            com.motonav.data.local.db.entities.PoiCategory.CITY.name,
+            com.motonav.data.model.CategoryResolver.resolve("EM Bypass Expressway")
+        )
+    }
 }

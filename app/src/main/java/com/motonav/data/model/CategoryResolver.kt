@@ -114,19 +114,27 @@ object CategoryResolver {
             all.contains("hdfc") || all.contains("icici") || all.contains("axis bank") ||
             all.contains("punjab national") -> PoiCategory.ATM.name
 
-            // 10. Viewpoint & Scenic Passes
+            // 10. Viewpoint, Peaks & Scenic Passes
             tour == "viewpoint" || m == "viewpoint" || c == "viewpoint" ||
             all.contains("viewpoint") || all.contains("view point") || all.contains("ghat") ||
             all.contains("peak") || all.contains("cliff") || all.contains("sunrise point") ||
-            all.contains("sunset point") || all.contains("ayodhya hills") || all.contains("tiger hill") ||
-            all.contains("panoramic") -> PoiCategory.VIEWPOINT.name
+            all.contains("sunset point") || all.contains("tiger hill") || all.contains("batasia loop") ||
+            all.contains("dam") || all.contains("falls") || all.contains("waterfall") ||
+            all.contains("ayodhya hills") || all.contains("susunia") || all.contains("biharinath") ||
+            all.contains("mukutmanipur") || all.contains("maithon") || all.contains("panchet") ||
+            all.contains("massanjore") || all.contains("sandakphu") || all.contains("panoramic") ->
+                PoiCategory.VIEWPOINT.name
 
-            // 11. Monument & Heritage Attraction
+            // 11. Monument & Heritage Attraction (Bridges, Memorials, Forts, Museums)
             tour in listOf("attraction", "museum") || hist.isNotBlank() || m in listOf("monument", "museum") ||
             all.contains("monument") || all.contains("museum") || all.contains("heritage") ||
             all.contains("palace") || all.contains("fort") || all.contains("statue") ||
             all.contains("memorial") || all.contains("victoria memorial") || all.contains("howrah bridge") ||
-            all.contains("science city") || all.contains("princep ghat") -> PoiCategory.ATTRACTION.name
+            all.contains("vidyasagar setu") || all.contains("bridge") || all.contains("setu") ||
+            all.contains("ghat") || all.contains("rajbari") || all.contains("clock tower") ||
+            all.contains("planetarium") || all.contains("stadium") || all.contains("science city") ||
+            all.contains("princep ghat") || all.contains("babu ghat") || all.contains("millennium park") ||
+            all.contains("eden gardens") || all.contains("salt lake stadium") -> PoiCategory.ATTRACTION.name
 
             // 12. Park, Nature, Lakes & Beaches
             leis in listOf("park", "garden", "nature_reserve") || m in listOf("park", "garden") ||
@@ -134,14 +142,21 @@ object CategoryResolver {
             all.contains("beach") || all.contains("sanctuary") || all.contains("forest") ||
             all.contains("waterfall") || all.contains("falls") || all.contains("eco park") ||
             all.contains("nicco park") || all.contains("alipore zoo") || all.contains("digha") ||
-            all.contains("mandarmani") || all.contains("mirik") -> PoiCategory.PARK.name
+            all.contains("mandarmani") || all.contains("tajpur") || all.contains("bakkhali") ||
+            all.contains("mirik") || all.contains("gorumara") || all.contains("jaldapara") ->
+                PoiCategory.PARK.name
 
-            // 13. Temple & Place of Worship
+            // 13. Temple & Place of Worship (Mandirs, Mosques, Churches, Monasteries, Gurdwaras)
             a == "place_of_worship" || m in listOf("place-of-worship", "religious-christian", "religious-jewish", "religious-muslim") ||
             all.contains("temple") || all.contains("mandir") || all.contains("masjid") ||
             all.contains("mosque") || all.contains("church") || all.contains("cathedral") ||
             all.contains("gurudwara") || all.contains("dakshineswar") || all.contains("kalighat") ||
-            all.contains("belur math") || all.contains("ashram") || all.contains("monastery") ->
+            all.contains("belur math") || all.contains("ashram") || all.contains("monastery") ||
+            all.contains("pagoda") || all.contains("stupa") || all.contains("shrine") ||
+            all.contains("dargah") || all.contains("iskcon") || all.contains("kali bari") ||
+            all.contains("tarapith") || all.contains("mayapur") || all.contains("kapil muni") ||
+            all.contains("hangseshwari") || all.contains("tarakeswar") || all.contains("bakreshwar") ||
+            all.contains("furfura sharif") || all.contains("jalpesh") || all.contains("basilica") ->
                 PoiCategory.TEMPLE.name
 
             // 14. Police & Highway Help
@@ -153,7 +168,7 @@ object CategoryResolver {
             all.contains("toll") || all.contains("toll plaza") || all.contains("fastag") ||
             all.contains("check post") -> PoiCategory.TOLL.name
 
-            // 16. Stores, Supermarkets, Malls & Retail (ONLY real shops!)
+            // 16. Local Shops, Bazaars, Sweets & Malls (Real retail & markets)
             s.isNotBlank() || m in listOf("grocery", "clothing-store", "shop", "convenience") ||
             c in listOf("shop", "grocery", "mall") ||
             all.contains("decathlon") || all.contains("supermarket") || all.contains("hypermarket") ||
@@ -161,13 +176,30 @@ object CategoryResolver {
             all.contains("smart bazaar") || all.contains("reliance smart") || all.contains("dmart") ||
             all.contains("departmental store") || all.contains("convenience") || all.contains("bazaar") ||
             all.contains("market") || all.contains("shopping") || all.contains("retail") ||
-            all.contains("store") || all.contains("shop") -> PoiCategory.STORE.name
+            all.contains("store") || all.contains("shop") || all.contains("sweet") ||
+            all.contains("sweets") || all.contains("sandesh") || all.contains("mithai") ||
+            all.contains("haat") || all.contains("bazar") || all.contains("jewellers") ||
+            all.contains("jewellery") || all.contains("cloth") || all.contains("textile") ||
+            all.contains("handicraft") || all.contains("book store") || all.contains("bookseller") ||
+            all.contains("stationery") || all.contains("sports") || all.contains("kirana") ||
+            all.contains("new market") || all.contains("college street") || all.contains("gariahat") ||
+            all.contains("burrabazar") || all.contains("hatibagan") || all.contains("quest mall") ||
+            all.contains("south city") || all.contains("city centre") || all.contains("acropolis") ||
+            all.contains("mani square") || all.contains("flurys") || all.contains("nahoum") ||
+            all.contains("kc das") || all.contains("bhim chandra nag") || all.contains("balaram mullick") ||
+            all.contains("nakur") || all.contains("ganguram") -> PoiCategory.STORE.name
 
-            // 17. City, Town & Regional Hubs
+            // 17. Street Names, Avenues, Expressways, City Hubs & Crossroads
             c == "place" || t == "place" ||
             all.contains("city") || all.contains("town") || all.contains("village") ||
-            all.contains("district") || all.contains("municipality") || all.contains("locality") ->
-                PoiCategory.CITY.name
+            all.contains("district") || all.contains("municipality") || all.contains("locality") ||
+            all.contains("street") || all.contains("road") || all.contains("sarani") ||
+            all.contains("avenue") || all.contains("expressway") || all.contains("highway") ||
+            all.contains("bypass") || all.contains("flyover") || all.contains("connector") ||
+            all.contains("corridor") || all.contains("lane") || all.contains("chowk") ||
+            all.contains("crossing") || all.contains("more") || all.contains("park street") ||
+            all.contains("em bypass") || all.contains("vip road") || all.contains("gt road") ||
+            all.contains("grand trunk") -> PoiCategory.CITY.name
 
             // 18. General map location fallback (NOT a store!)
             else -> PoiCategory.LOCATION.name

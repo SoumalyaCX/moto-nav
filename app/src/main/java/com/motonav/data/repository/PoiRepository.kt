@@ -731,12 +731,20 @@ class PoiRepository @Inject constructor(
 
         // 2. Query Mapbox Places API for real stores & amenities across the state bounding box
         if (ApiConfig.isMapboxConfigured) {
-            onProgress("Fetching detailed Mapbox stores & amenities for ${region.displayName}...")
+            onProgress("Fetching detailed Mapbox stores, temples & amenities for ${region.displayName}...")
             val searchCategories = listOf(
-                "supermarket store", "grocery store", "gas station petrol",
-                "dhaba restaurant", "cafe bakery", "hotel resort",
-                "motorcycle repair", "pharmacy hospital", "tourist attraction viewpoint",
-                "temple place of worship", "atm bank"
+                "temple place of worship mandir",
+                "famous market bazaar shop",
+                "supermarket grocery store",
+                "street road avenue highway",
+                "tourist attraction monument viewpoint",
+                "dhaba restaurant food",
+                "cafe bakery sweets",
+                "hotel resort lodging",
+                "motorcycle repair garage mechanic",
+                "pharmacy hospital clinic",
+                "gas station petrol fuel",
+                "atm bank"
             )
             val token = ApiConfig.MAPBOX_ACCESS_TOKEN
             for (queryTerm in searchCategories) {
@@ -789,23 +797,26 @@ class PoiRepository @Inject constructor(
             }
         }
 
-        // 3. Query OpenStreetMap Overpass API for real retail stores and amenities in the bounding box
-        onProgress("Fetching OpenStreetMap shops, fuel, and roadside amenities...")
+        // 3. Query OpenStreetMap Overpass API for real retail stores, temples, streets and amenities in the bounding box
+        onProgress("Fetching OpenStreetMap shops, temples, street names & landmarks...")
         try {
             val overpassQuery = """
-                [out:json][timeout:8];
+                [out:json][timeout:15];
                 (
                   node["shop"](${region.minLat},${region.minLng},${region.maxLat},${region.maxLng});
-                  node["amenity"~"fuel|restaurant|cafe|pharmacy|hospital|atm|bank|place_of_worship|police"](${region.minLat},${region.minLng},${region.maxLat},${region.maxLng});
-                  node["tourism"~"hotel|motel|viewpoint|attraction|museum|guest_house|resort"](${region.minLat},${region.minLng},${region.maxLat},${region.maxLng});
-                  node["leisure"~"park|garden|nature_reserve"](${region.minLat},${region.minLng},${region.maxLat},${region.maxLng});
+                  node["amenity"~"place_of_worship|fuel|restaurant|cafe|dhaba|fast_food|pharmacy|hospital|clinic|atm|bank|police|marketplace|post_office"](${region.minLat},${region.minLng},${region.maxLat},${region.maxLng});
+                  node["tourism"~"attraction|viewpoint|hotel|motel|guest_house|resort|museum|theme_park|zoo"](${region.minLat},${region.minLng},${region.maxLat},${region.maxLng});
+                  node["historic"~"monument|memorial|fort|ruins|heritage"](${region.minLat},${region.minLng},${region.maxLat},${region.maxLng});
+                  node["leisure"~"park|garden|nature_reserve|resort"](${region.minLat},${region.minLng},${region.maxLat},${region.maxLng});
+                  node["place"~"city|town|suburb|neighbourhood|village|locality"](${region.minLat},${region.minLng},${region.maxLat},${region.maxLng});
+                  way["highway"~"primary|secondary|trunk|motorway"]["name"](${region.minLat},${region.minLng},${region.maxLat},${region.maxLng});
                 );
-                out body 250;
+                out center 2500;
             """.trimIndent()
 
             val conn = URL(OVERPASS_API).openConnection() as HttpURLConnection
-            conn.connectTimeout = 5000
-            conn.readTimeout = 6000
+            conn.connectTimeout = 6000
+            conn.readTimeout = 12000
             conn.requestMethod = "POST"
             conn.doOutput = true
             conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
@@ -821,8 +832,10 @@ class PoiRepository @Inject constructor(
                     for (i in 0 until elements.length()) {
                         val elem = elements.getJSONObject(i)
                         val id = elem.optLong("id")
-                        val lat = elem.optDouble("lat")
-                        val lon = elem.optDouble("lon")
+                        val lat = if (elem.has("lat")) elem.optDouble("lat") else elem.optJSONObject("center")?.optDouble("lat") ?: 0.0
+                        val lon = if (elem.has("lon")) elem.optDouble("lon") else elem.optJSONObject("center")?.optDouble("lon") ?: 0.0
+                        if (lat == 0.0 || lon == 0.0) continue
+
                         val tags = elem.optJSONObject("tags") ?: continue
 
                         val name = tags.optString("name").takeIf { it.isNotBlank() }
@@ -834,19 +847,23 @@ class PoiRepository @Inject constructor(
                         val amenityVal = tags.optString("amenity")
                         val tourismVal = tags.optString("tourism")
                         val leisureVal = tags.optString("leisure")
+                        val highwayVal = tags.optString("highway")
+                        val placeVal = tags.optString("place")
 
                         val cat = CategoryResolver.resolve(
                             name = name,
-                            rawClass = amenityVal,
-                            subclass = shopVal,
+                            rawClass = if (highwayVal.isNotBlank()) "road" else if (placeVal.isNotBlank()) "place" else amenityVal,
+                            subclass = if (highwayVal.isNotBlank()) highwayVal else shopVal,
                             amenity = amenityVal,
                             shop = shopVal,
                             tourism = tourismVal,
+                            historic = tags.optString("historic"),
                             leisure = leisureVal
                         )
 
                         val brand = tags.optString("brand").takeIf { it.isNotBlank() }
                             ?: tags.optString("operator").takeIf { it.isNotBlank() }
+                            ?: if (highwayVal.isNotBlank()) "Major Road" else null
                         val street = tags.optString("addr:street")
                         val city = tags.optString("addr:city")
                         val phone = tags.optString("phone").takeIf { it.isNotBlank() }
@@ -863,6 +880,19 @@ class PoiRepository @Inject constructor(
                                 category = cat,
                                 latitude = lat,
                                 longitude = lon,
+                                brand = brand,
+                                address = address,
+                                phone = phone,
+                                openingHours = hours,
+                                regionId = region.id
+                            )
+                        )
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.d(TAG, "Overpass bbox query error: ${e.message}")
+        }
                                 brand = brand,
                                 address = address,
                                 phone = phone,

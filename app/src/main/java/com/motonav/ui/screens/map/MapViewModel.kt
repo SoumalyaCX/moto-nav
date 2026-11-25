@@ -274,10 +274,10 @@ class MapViewModel @Inject constructor(
         viewportJob?.cancel()
         viewportJob = viewModelScope.launch {
             delay(300) // Debounce rapid continuous drags
-            val pois = poiRepository.getPoisInBounds(minLat, maxLat, minLng, maxLng, limit = 120)
+            val pois = poiRepository.getPoisInBounds(minLat, maxLat, minLng, maxLng, limit = 300)
             if (pois.isNotEmpty()) {
                 val current = _uiState.value.nearbyPois
-                val merged = (current + pois).distinctBy { it.osmId }.take(150)
+                val merged = (current + pois).distinctBy { it.osmId }.take(350)
                 _uiState.value = _uiState.value.copy(nearbyPois = merged)
             }
         }

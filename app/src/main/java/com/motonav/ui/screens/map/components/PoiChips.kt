@@ -30,13 +30,14 @@ val DEFAULT_POI_FILTERS = listOf(
     PoiFilterItem(PoiCategory.STORE, "Shops", "🛒"),
     PoiFilterItem(PoiCategory.PETROL, "Petrol", "⛽"),
     PoiFilterItem(PoiCategory.DHABA, "Dhabas", "🍛"),
+    PoiFilterItem(PoiCategory.TEMPLE, "Temples", "🛕"),
+    PoiFilterItem(PoiCategory.ATTRACTION, "Landmarks", "🏛️"),
+    PoiFilterItem(PoiCategory.CITY, "Streets & Hubs", "🏙️"),
+    PoiFilterItem(PoiCategory.VIEWPOINT, "Viewpoints", "🏔️"),
     PoiFilterItem(PoiCategory.CAFE, "Cafes", "☕"),
     PoiFilterItem(PoiCategory.HOTEL, "Hotels", "🏨"),
     PoiFilterItem(PoiCategory.MECHANIC, "Mechanic", "🔧"),
-    PoiFilterItem(PoiCategory.VIEWPOINT, "Viewpoints", "🏔️"),
-    PoiFilterItem(PoiCategory.ATTRACTION, "Landmarks", "🏛️"),
     PoiFilterItem(PoiCategory.PARK, "Parks", "🌲"),
-    PoiFilterItem(PoiCategory.TEMPLE, "Temples", "🛕"),
     PoiFilterItem(PoiCategory.ATM, "ATMs", "💳"),
     PoiFilterItem(PoiCategory.HOSPITAL, "Hospital", "🏥")
 )
