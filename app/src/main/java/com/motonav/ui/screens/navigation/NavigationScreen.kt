@@ -81,6 +81,9 @@ import org.maplibre.android.geometry.LatLng as MapLibreLatLng
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.Style
+import org.maplibre.android.style.layers.FillExtrusionLayer
+import org.maplibre.android.style.layers.PropertyFactory
+import org.maplibre.android.style.expressions.Expression
 
 @Composable
 fun NavigationScreen(
@@ -455,7 +458,19 @@ fun NavigationMapViewport(
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
+
+        // Ensure MapLibre native GL surface starts immediately if Activity is already in STARTED/RESUMED state
+        when (lifecycleOwner.lifecycle.currentState) {
+            Lifecycle.State.STARTED -> mapView.onStart()
+            Lifecycle.State.RESUMED -> {
+                mapView.onStart()
+                mapView.onResume()
+            }
+            else -> {}
+        }
+
         onDispose {
+            lastRenderedRouteId = null
             lifecycleOwner.lifecycle.removeObserver(observer)
             mapView.onDestroy()
         }
@@ -466,7 +481,12 @@ fun NavigationMapViewport(
     var isMapReady by remember { mutableStateOf(false) }
 
     val resolvedStyle = remember(styleJson, isDarkTheme) {
-        if (styleJson.isNotBlank()) {
+        if (styleJson.trim().startsWith("{")) {
+            styleJson
+        } else if (styleJson.startsWith("https://tiles.openfreemap.org") ||
+            styleJson.startsWith("https://demotiles.maplibre.org") ||
+            styleJson.startsWith("file://") ||
+            styleJson.startsWith("asset://")) {
             styleJson
         } else if (isDarkTheme) {
             MapStyleManager.ONLINE_STYLE_DARK
@@ -489,6 +509,7 @@ fun NavigationMapViewport(
                     loadNavMapStyle(map, mapView, resolvedStyle) {
                         loadedStyleKey = resolvedStyle
                         isMapReady = true
+                        enable3DBuildings(map)
                         updateNavCameraAndRoute(map, status, riderCoord, isFrontFacing)
                     }
                 }
@@ -503,6 +524,7 @@ fun NavigationMapViewport(
                 loadNavMapStyle(map, mapView, resolvedStyle) {
                     loadedStyleKey = resolvedStyle
                     isMapReady = true
+                    enable3DBuildings(map)
                     updateNavCameraAndRoute(map, status, riderCoord, isFrontFacing)
                 }
             } else if (isMapReady) {
@@ -511,6 +533,33 @@ fun NavigationMapViewport(
         }
     )
 }
+
+private fun enable3DBuildings(map: MapLibreMap) {
+    try {
+        val style = map.style ?: return
+        if (style.getLayer("3d-buildings") != null) return
+
+        val sourceId = if (style.getSource("composite") != null) "composite" else "openmaptiles"
+        if (style.getSource(sourceId) == null) return
+
+        val buildingLayer = FillExtrusionLayer("3d-buildings", sourceId)
+        buildingLayer.sourceLayer = "building"
+        buildingLayer.minZoom = 14.5f
+        buildingLayer.setProperties(
+            PropertyFactory.fillExtrusionColor(AndroidColor.parseColor("#141E33")),
+            PropertyFactory.fillExtrusionHeight(
+                Expression.get("height")
+            ),
+            PropertyFactory.fillExtrusionBase(
+                Expression.get("min_height")
+            ),
+            PropertyFactory.fillExtrusionOpacity(0.85f)
+        )
+        style.addLayer(buildingLayer)
+    } catch (ignored: Exception) {}
+}
+
+private var lastRenderedRouteId: String? = null
 
 private fun loadNavMapStyle(
     map: MapLibreMap,
@@ -596,13 +645,14 @@ private fun updateNavCameraAndRoute(
         .bearing(targetBearing)
         .build()
 
-    map.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition), 700)
+    // Smooth navigation easing for motorcycle motion
+    map.easeCamera(CameraUpdateFactory.newCameraPosition(cameraPosition), 400)
 
-    // 2. Render Route Polyline & Markers
-    map.clear()
-
-    // Draw active route polyline
-    status.route?.let { route ->
+    // Render Route Polyline & Destination Marker (only re-create when route changes)
+    val route = status.route
+    if (route != null && lastRenderedRouteId != route.id) {
+        lastRenderedRouteId = route.id
+        map.clear()
         val polyPoints = route.points.map { MapLibreLatLng(it.latitude, it.longitude) }
         if (polyPoints.isNotEmpty()) {
             map.addPolyline(
@@ -619,12 +669,21 @@ private fun updateNavCameraAndRoute(
                     .title("🏁 Destination")
             )
         }
+    } else if (route == null) {
+        map.clear()
+        lastRenderedRouteId = null
     }
 
-    // 3. Motorcycle Rider Marker
-    map.addMarker(
-        MarkerOptions()
-            .position(riderPos)
-            .title("🏍️ Speed: ${status.currentSpeedKmh.toInt()} km/h")
-    )
+    // 3. Motorcycle Rider Marker: Update position smoothly without wiping the route
+    val riderMarker = map.markers.firstOrNull { it.title?.contains("Speed:") == true || it.title?.contains("🏍️") == true }
+    if (riderMarker != null) {
+        riderMarker.position = riderPos
+        riderMarker.title = "🏍️ Speed: ${status.currentSpeedKmh.toInt()} km/h"
+    } else {
+        map.addMarker(
+            MarkerOptions()
+                .position(riderPos)
+                .title("🏍️ Speed: ${status.currentSpeedKmh.toInt()} km/h")
+        )
+    }
 }

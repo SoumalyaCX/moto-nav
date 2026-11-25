@@ -1,6 +1,7 @@
 package com.motonav.navigation
 
 import com.motonav.data.model.LatLng
+import com.motonav.data.model.ManeuverType
 import com.motonav.data.model.NavigationRoute
 import com.motonav.data.model.RouteManeuver
 import kotlinx.coroutines.CoroutineScope
@@ -53,15 +54,28 @@ class FerrostarBridge @Inject constructor(
     }
 
     fun startNavigation(route: NavigationRoute) {
-        activeRoute = route
+        val initialManeuver = route.maneuvers.firstOrNull() ?: RouteManeuver(
+            stepIndex = 0,
+            type = ManeuverType.DEPART,
+            instruction = "Follow highlighted route",
+            streetName = "",
+            distanceMeters = route.totalDistanceMeters,
+            timeMillis = route.totalTimeMillis,
+            coordinate = route.points.firstOrNull() ?: LatLng(0.0, 0.0)
+        )
+        val safeRoute = if (route.maneuvers.isEmpty()) {
+            route.copy(maneuvers = listOf(initialManeuver))
+        } else {
+            route
+        }
+        activeRoute = safeRoute
         currentManeuverIndex = 0
         lastAnnouncedUpcomingManeuverIndex = -1
         lastAnnouncedImmediateManeuverIndex = -1
 
-        val initialManeuver = route.maneuvers.firstOrNull() ?: return
-        val startLoc = route.points.firstOrNull() ?: initialManeuver.coordinate
-        val initialBearing = if (route.points.size >= 2) {
-            calculateBearing(route.points[0], route.points[1])
+        val startLoc = safeRoute.points.firstOrNull() ?: initialManeuver.coordinate
+        val initialBearing = if (safeRoute.points.size >= 2) {
+            calculateBearing(safeRoute.points[0], safeRoute.points[1])
         } else {
             0f
         }
@@ -70,11 +84,11 @@ class FerrostarBridge @Inject constructor(
             currentStepIndex = 0,
             currentManeuver = initialManeuver,
             distanceToNextManeuverMeters = initialManeuver.distanceMeters,
-            remainingDistanceTotalMeters = route.totalDistanceMeters,
-            remainingTimeTotalMillis = route.totalTimeMillis,
+            remainingDistanceTotalMeters = safeRoute.totalDistanceMeters,
+            remainingTimeTotalMillis = safeRoute.totalTimeMillis,
             currentSpeedKmh = 0f,
             currentBearing = initialBearing,
-            route = route,
+            route = safeRoute,
             riderLocation = startLoc
         )
 

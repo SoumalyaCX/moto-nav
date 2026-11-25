@@ -72,17 +72,8 @@ class MapStyleManager @Inject constructor(
             // Load offline vector style with local PMTiles source
             buildLocalPmtilesStyle(pmtilesFile, isDarkTheme)
         } else if (!forceOffline) {
-            if (ApiConfig.isMapboxConfigured) {
-                // High-density Mapbox Navigation styles with highway shields and 3D buildings
-                if (isDarkTheme) {
-                    "https://api.mapbox.com/styles/v1/mapbox/navigation-night-v1?access_token=${ApiConfig.MAPBOX_ACCESS_TOKEN}"
-                } else {
-                    "https://api.mapbox.com/styles/v1/mapbox/navigation-day-v1?access_token=${ApiConfig.MAPBOX_ACCESS_TOKEN}"
-                }
-            } else {
-                // Fallback to free OpenFreeMap without API keys
-                if (isDarkTheme) ONLINE_STYLE_DARK else ONLINE_STYLE_LIBERTY
-            }
+            // Highly optimized vector tile styles built natively for MapLibre with zero proprietary protocol errors
+            if (isDarkTheme) ONLINE_STYLE_DARK else ONLINE_STYLE_LIBERTY
         } else {
             // Offline fallback template or OSM raster
             OSM_RASTER_FALLBACK

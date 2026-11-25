@@ -895,6 +895,17 @@ fun MapViewportCanvas(
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
+
+        // Ensure MapLibre native GL surface starts immediately if Activity is already in STARTED/RESUMED state
+        when (lifecycleOwner.lifecycle.currentState) {
+            Lifecycle.State.STARTED -> mapView.onStart()
+            Lifecycle.State.RESUMED -> {
+                mapView.onStart()
+                mapView.onResume()
+            }
+            else -> {}
+        }
+
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
             mapView.onDestroy()
