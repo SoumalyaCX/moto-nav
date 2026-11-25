@@ -49,10 +49,8 @@ fun MiniSpotifyPlayer(
     modifier: Modifier = Modifier
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    var hasNotificationAccess by androidx.compose.runtime.remember {
-        androidx.compose.runtime.mutableStateOf(
-            com.motonav.integrations.whatsapp.WANotificationService.isNotificationAccessGranted(context)
-        )
+    val hasNotificationAccess = androidx.compose.runtime.remember(playerState) {
+        com.motonav.integrations.whatsapp.WANotificationService.isNotificationAccessGranted(context)
     }
 
     val displayTitle = playerState.trackTitle.takeIf { it.isNotBlank() } ?: "No music playing"
