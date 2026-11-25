@@ -107,6 +107,7 @@ class WANotificationService : NotificationListenerService() {
             var controllerArtist: String? = null
             var controllerTitle: String? = null
             var controllerArt: Bitmap? = null
+            var controllerPlaying: Boolean? = null
 
             if (sessionToken != null) {
                 try {
@@ -125,6 +126,22 @@ class WANotificationService : NotificationListenerService() {
                         controllerArt = metadata.getBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART)
                             ?: metadata.getBitmap(android.media.MediaMetadata.METADATA_KEY_ART)
                             ?: metadata.getBitmap(android.media.MediaMetadata.METADATA_KEY_DISPLAY_ICON)
+                    }
+
+                    val pbState = mediaController.playbackState
+                    if (pbState != null) {
+                        controllerPlaying = when (pbState.state) {
+                            android.media.session.PlaybackState.STATE_PLAYING,
+                            android.media.session.PlaybackState.STATE_BUFFERING,
+                            android.media.session.PlaybackState.STATE_CONNECTING,
+                            android.media.session.PlaybackState.STATE_FAST_FORWARDING,
+                            android.media.session.PlaybackState.STATE_REWINDING -> true
+                            android.media.session.PlaybackState.STATE_PAUSED,
+                            android.media.session.PlaybackState.STATE_STOPPED,
+                            android.media.session.PlaybackState.STATE_NONE,
+                            android.media.session.PlaybackState.STATE_ERROR -> false
+                            else -> null
+                        }
                     }
                 } catch (ignored: Exception) {}
             }
@@ -187,22 +204,17 @@ class WANotificationService : NotificationListenerService() {
             var playPauseIntent: PendingIntent? = null
             var nextIntent: PendingIntent? = null
             var prevIntent: PendingIntent? = null
-            var isPlaying: Boolean? = null
 
             val actions = notification.actions
             if (actions != null) {
                 for (action in actions) {
-                    val actionTitle = action.title?.toString()?.lowercase() ?: ""
-                    if (actionTitle.contains("pause")) {
-                        isPlaying = true
-                        playPauseIntent = action.actionIntent
-                    } else if (actionTitle.contains("play")) {
-                        isPlaying = false
-                        playPauseIntent = action.actionIntent
+                    val actionTitle = action.title?.toString()?.trim()?.lowercase() ?: ""
+                    if (actionTitle.contains("pause") || actionTitle.contains("play") || actionTitle.contains("resume")) {
+                        if (playPauseIntent == null) playPauseIntent = action.actionIntent
                     } else if (actionTitle.contains("next") || actionTitle.contains("forward")) {
-                        nextIntent = action.actionIntent
+                        if (nextIntent == null) nextIntent = action.actionIntent
                     } else if (actionTitle.contains("prev") || actionTitle.contains("rewind") || actionTitle.contains("back")) {
-                        prevIntent = action.actionIntent
+                        if (prevIntent == null) prevIntent = action.actionIntent
                     }
                 }
 
@@ -217,6 +229,20 @@ class WANotificationService : NotificationListenerService() {
                     if (nextIntent == null) nextIntent = actions[3].actionIntent
                 }
             }
+
+            // Primary source of truth: MediaController state. Fallback: Exact action text.
+            val isPlaying: Boolean? = controllerPlaying ?: if (actions != null) {
+                var actionState: Boolean? = null
+                for (action in actions) {
+                    val actionTitle = action.title?.toString()?.trim()?.lowercase() ?: ""
+                    if (actionTitle == "pause" || actionTitle == "pause song") {
+                        actionState = true
+                    } else if (actionTitle == "play" || actionTitle == "resume") {
+                        actionState = false
+                    }
+                }
+                actionState
+            } else null
 
             SpotifyRemoteManager.getInstance()?.onSpotifyNotification(
                 title = title,

@@ -100,13 +100,17 @@ class SpotifyRemoteManager @Inject constructor(
                 }
 
                 "com.spotify.music.playbackstatechanged" -> {
-                    val isPlaying = intent.getBooleanExtra("playing", false)
+                    val isPlaying: Boolean? = when {
+                        intent.hasExtra("playing") -> intent.getBooleanExtra("playing", false)
+                        intent.hasExtra("playstate") -> intent.getBooleanExtra("playstate", false)
+                        else -> null
+                    }
                     val position = intent.getLongExtra("playbackPosition", 0L)
                     Log.d(TAG, "Spotify playback broadcast: isPlaying=$isPlaying, position=$position")
                     _playerState.update { current ->
                         current.copy(
-                            isPlaying = isPlaying,
-                            positionMs = position,
+                            isPlaying = isPlaying ?: current.isPlaying,
+                            positionMs = if (position > 0) position else current.positionMs,
                             isConnected = true
                         )
                     }
@@ -333,8 +337,21 @@ class SpotifyRemoteManager @Inject constructor(
 
         controller.registerCallback(object : MediaController.Callback() {
             override fun onPlaybackStateChanged(state: PlaybackState?) {
-                val playing = state?.state == PlaybackState.STATE_PLAYING
-                _playerState.update { it.copy(isPlaying = playing) }
+                val playing = when (state?.state) {
+                    PlaybackState.STATE_PLAYING,
+                    PlaybackState.STATE_BUFFERING,
+                    PlaybackState.STATE_CONNECTING,
+                    PlaybackState.STATE_FAST_FORWARDING,
+                    PlaybackState.STATE_REWINDING -> true
+                    PlaybackState.STATE_PAUSED,
+                    PlaybackState.STATE_STOPPED,
+                    PlaybackState.STATE_NONE,
+                    PlaybackState.STATE_ERROR -> false
+                    else -> null
+                }
+                if (playing != null) {
+                    _playerState.update { it.copy(isPlaying = playing) }
+                }
             }
 
             override fun onMetadataChanged(meta: android.media.MediaMetadata?) {
@@ -405,14 +422,25 @@ class SpotifyRemoteManager @Inject constructor(
         val mediaId = metadata?.getString(android.media.MediaMetadata.METADATA_KEY_MEDIA_ID)
             ?: metadata?.getString(android.media.MediaMetadata.METADATA_KEY_MEDIA_URI)
 
-        val isPlaying = pbState?.state == PlaybackState.STATE_PLAYING
+        val isPlaying = when (pbState?.state) {
+            PlaybackState.STATE_PLAYING,
+            PlaybackState.STATE_BUFFERING,
+            PlaybackState.STATE_CONNECTING,
+            PlaybackState.STATE_FAST_FORWARDING,
+            PlaybackState.STATE_REWINDING -> true
+            PlaybackState.STATE_PAUSED,
+            PlaybackState.STATE_STOPPED,
+            PlaybackState.STATE_NONE,
+            PlaybackState.STATE_ERROR -> false
+            else -> null
+        }
 
         _playerState.update { current ->
             current.copy(
                 trackTitle = title?.takeIf { it.isNotBlank() } ?: current.trackTitle,
                 artistName = artist?.takeIf { it.isNotBlank() } ?: current.artistName,
                 albumArt = art ?: current.albumArt,
-                isPlaying = isPlaying,
+                isPlaying = isPlaying ?: current.isPlaying,
                 isConnected = true
             )
         }
@@ -430,16 +458,21 @@ class SpotifyRemoteManager @Inject constructor(
      * Executes Play or Pause cleanly without rapid double-triggering or command collisions.
      */
     fun togglePlayPause() {
-        val isActuallyPlaying = (activeMediaController?.playbackState?.state == PlaybackState.STATE_PLAYING)
-            || audioManager.isMusicActive
-            || _playerState.value.isPlaying
+        val currentlyPlaying = (activeMediaController?.playbackState?.state.let {
+            it == PlaybackState.STATE_PLAYING || it == PlaybackState.STATE_BUFFERING || it == PlaybackState.STATE_CONNECTING
+        }) || _playerState.value.isPlaying
+
+        val newPlayingState = !currentlyPlaying
+
+        // Optimistically update UI immediately so icon changes from Play -> Pause or Pause -> Play instantly
+        _playerState.update { it.copy(isPlaying = newPlayingState) }
 
         var commandExecuted = false
 
-        // Method 1: MediaController transport controls (Exact and authoritative)
+        // Method 1: MediaController transport controls (Primary, direct, authoritative)
         if (activeMediaController != null) {
             try {
-                if (isActuallyPlaying) {
+                if (currentlyPlaying) {
                     activeMediaController?.transportControls?.pause()
                 } else {
                     activeMediaController?.transportControls?.play()
@@ -450,7 +483,7 @@ class SpotifyRemoteManager @Inject constructor(
             }
         }
 
-        // Method 2: Notification Action PendingIntent (Only if MediaController wasn't connected)
+        // Method 2: Notification Action PendingIntent (Fallback if controller isn't active)
         if (!commandExecuted && playPausePendingIntent != null) {
             try {
                 playPausePendingIntent?.send()
@@ -462,10 +495,10 @@ class SpotifyRemoteManager @Inject constructor(
 
         // Method 3: Targeted Media Key or Widget Broadcast
         if (!commandExecuted) {
-            val keyCode = if (isActuallyPlaying) KeyEvent.KEYCODE_MEDIA_PAUSE else KeyEvent.KEYCODE_MEDIA_PLAY
+            val keyCode = if (currentlyPlaying) KeyEvent.KEYCODE_MEDIA_PAUSE else KeyEvent.KEYCODE_MEDIA_PLAY
             sendSpotifyMediaKey(keyCode)
 
-            val widgetAction = if (isActuallyPlaying) {
+            val widgetAction = if (currentlyPlaying) {
                 "com.spotify.mobile.android.ui.widget.PAUSE"
             } else {
                 "com.spotify.mobile.android.ui.widget.PLAY"
@@ -477,8 +510,6 @@ class SpotifyRemoteManager @Inject constructor(
                 context.sendBroadcast(intent)
             } catch (ignored: Exception) {}
         }
-
-        _playerState.update { it.copy(isPlaying = !isActuallyPlaying) }
     }
 
     fun skipNext() {
