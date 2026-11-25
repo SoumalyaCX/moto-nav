@@ -229,15 +229,7 @@ fun MapScreen(
                                             .padding(horizontal = 12.dp, vertical = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        val iconEmoji = when (poi.category) {
-                                            "PETROL" -> "⛽"
-                                            "DHABA", "RESTAURANT" -> "🍛"
-                                            "MECHANIC" -> "🔧"
-                                            "STORE" -> "🛒"
-                                            "HOSPITAL" -> "🏥"
-                                            "VIEWPOINT" -> "🏔️"
-                                            else -> "📍"
-                                        }
+                                        val iconEmoji = com.motonav.data.model.CategoryResolver.getCategoryInfo(poi.category).emoji
                                         Text(text = iconEmoji, fontSize = 20.sp)
                                         Spacer(modifier = Modifier.width(10.dp))
                                         Column(modifier = Modifier.weight(1f)) {
@@ -850,25 +842,28 @@ fun MapViewportCanvas(
             val featName = poiFeature.getStringProperty("name")
                 ?: poiFeature.getStringProperty("name_en")
                 ?: "Point of Interest"
-            val featClass = poiFeature.getStringProperty("class")
-                ?: poiFeature.getStringProperty("type")
-                ?: poiFeature.getStringProperty("category")
-                ?: ""
-            val category = when {
-                featClass.contains("fuel") || featClass.contains("gas") || featName.contains("Petrol", true) -> "PETROL"
-                featClass.contains("food") || featClass.contains("restaurant") || featClass.contains("cafe") || featName.contains("Dhaba", true) -> "DHABA"
-                featClass.contains("motorcycle") || featClass.contains("auto") || featClass.contains("repair") -> "MECHANIC"
-                featClass.contains("hospital") || featClass.contains("pharmacy") || featClass.contains("medical") -> "HOSPITAL"
-                featClass.contains("viewpoint") || featClass.contains("attraction") || featClass.contains("park") -> "VIEWPOINT"
-                else -> "STORE"
-            }
+            val featClass = poiFeature.getStringProperty("class") ?: ""
+            val featSubclass = poiFeature.getStringProperty("subclass") ?: ""
+            val featCategory = poiFeature.getStringProperty("category") ?: ""
+            val featType = poiFeature.getStringProperty("type") ?: ""
+            val featMaki = poiFeature.getStringProperty("maki") ?: ""
+
+            val category = com.motonav.data.model.CategoryResolver.resolve(
+                name = featName,
+                rawClass = featClass,
+                subclass = featSubclass,
+                category = featCategory,
+                type = featType,
+                maki = featMaki
+            )
+            val info = com.motonav.data.model.CategoryResolver.getCategoryInfo(category)
             val tappedPoi = com.motonav.data.local.db.entities.PoiEntity(
                 osmId = System.currentTimeMillis(),
                 name = featName,
                 category = category,
                 latitude = clickLatLng.latitude,
                 longitude = clickLatLng.longitude,
-                brand = featClass.ifBlank { "Point of Interest" },
+                brand = featClass.ifBlank { info.title },
                 address = "Near $featName, West Bengal",
                 regionId = "rendered_vector"
             )
@@ -1103,18 +1098,10 @@ private fun updateMapCameraAndLayers(
         }
     }
 
-    // Draw POIs
-    uiState.nearbyPois.take(50).forEach { poi ->
+    // Draw POIs with rich density and accurate category iconography
+    uiState.nearbyPois.take(120).forEach { poi ->
         val isSelected = uiState.selectedPoi?.osmId == poi.osmId
-        val emoji = when (poi.category) {
-            "PETROL" -> "⛽"
-            "DHABA", "RESTAURANT" -> "🍛"
-            "MECHANIC" -> "🔧"
-            "STORE" -> "🛒"
-            "HOSPITAL" -> "🏥"
-            "VIEWPOINT" -> "🏔️"
-            else -> "📍"
-        }
+        val emoji = com.motonav.data.model.CategoryResolver.getCategoryInfo(poi.category).emoji
         val prefix = if (isSelected) "⭐ " else ""
         map.addMarker(
             MarkerOptions()

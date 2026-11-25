@@ -8,6 +8,7 @@ import com.motonav.data.local.PreferencesStore
 import com.motonav.data.local.db.PoiDao
 import com.motonav.data.local.db.entities.PoiCategory
 import com.motonav.data.local.db.entities.PoiEntity
+import com.motonav.data.model.CategoryResolver
 import com.motonav.data.model.LatLng
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -38,8 +39,8 @@ class PoiRepository @Inject constructor(
     suspend fun getNearbyPois(
         userLocation: LatLng,
         category: PoiCategory? = null,
-        radiusKm: Double = 20.0,
-        limit: Int = 30
+        radiusKm: Double = 35.0,
+        limit: Int = 100
     ): List<PoiEntity> = withContext(Dispatchers.IO) {
         val latDelta = radiusKm / 111.0
         val lngDelta = radiusKm / (111.0 * Math.cos(Math.toRadians(userLocation.latitude)))
@@ -73,8 +74,8 @@ class PoiRepository @Inject constructor(
             )
         }.toMutableList()
 
-        // 2. If a specific roadside category is selected (Petrol, Dhaba, Mechanic, Viewpoint), query live Overpass
-        if (category != null && category in setOf(PoiCategory.PETROL, PoiCategory.DHABA, PoiCategory.MECHANIC, PoiCategory.VIEWPOINT)) {
+        // 2. Query live Overpass if online and category selected
+        if (category != null) {
             val livePois = fetchLiveOverpassAmenities(userLocation, category, (radiusKm * 1000).toInt(), limit)
             if (livePois.isNotEmpty()) {
                 // Cache into Room DB so they remain available offline
@@ -242,16 +243,14 @@ class PoiRepository @Inject constructor(
                         val text = feat.optString("text", "Map Location")
                         val placeName = feat.optString("place_name", text)
                         val props = feat.optJSONObject("properties")
-                        val categoryStr = props?.optString("category", "")?.lowercase() ?: ""
+                        val categoryStr = props?.optString("category", "") ?: ""
 
-                        val category = when {
-                            categoryStr.contains("gas") || categoryStr.contains("fuel") || text.contains("Petrol", true) -> PoiCategory.PETROL.name
-                            categoryStr.contains("restaurant") || categoryStr.contains("food") || text.contains("Dhaba", true) -> PoiCategory.DHABA.name
-                            categoryStr.contains("repair") || categoryStr.contains("auto") || text.contains("Mechanic", true) -> PoiCategory.MECHANIC.name
-                            categoryStr.contains("viewpoint") || categoryStr.contains("park") -> PoiCategory.VIEWPOINT.name
-                            categoryStr.contains("hospital") || categoryStr.contains("medical") -> PoiCategory.HOSPITAL.name
-                            else -> PoiCategory.STORE.name
-                        }
+                        val category = CategoryResolver.resolve(
+                            name = text,
+                            category = categoryStr,
+                            rawClass = feat.optString("place_type", "")
+                        )
+                        val info = CategoryResolver.getCategoryInfo(category)
 
                         val entity = PoiEntity(
                             osmId = System.currentTimeMillis(),
@@ -259,7 +258,7 @@ class PoiRepository @Inject constructor(
                             category = category,
                             latitude = latLng.latitude,
                             longitude = latLng.longitude,
-                            brand = props?.optString("category") ?: "Point of Interest",
+                            brand = props?.optString("category") ?: info.title,
                             address = placeName,
                             regionId = "online_reverse"
                         )
@@ -296,13 +295,29 @@ class PoiRepository @Inject constructor(
                         val city = props.optString("city")
                         val fullAddr = listOfNotNull(street.takeIf { it.isNotBlank() }, city.takeIf { it.isNotBlank() }).joinToString(", ")
 
+                        val osmKey = props.optString("osm_key")
+                        val osmVal = props.optString("osm_value")
+                        val osmType = props.optString("type")
+                        val category = CategoryResolver.resolve(
+                            name = name,
+                            rawClass = osmKey,
+                            subclass = osmVal,
+                            category = osmType,
+                            amenity = if (osmKey == "amenity") osmVal else "",
+                            shop = if (osmKey == "shop") osmVal else "",
+                            tourism = if (osmKey == "tourism") osmVal else "",
+                            historic = if (osmKey == "historic") osmVal else "",
+                            leisure = if (osmKey == "leisure") osmVal else ""
+                        )
+                        val info = CategoryResolver.getCategoryInfo(category)
+
                         val entity = PoiEntity(
                             osmId = System.currentTimeMillis(),
                             name = name,
-                            category = PoiCategory.STORE.name,
+                            category = category,
                             latitude = latLng.latitude,
                             longitude = latLng.longitude,
-                            brand = city,
+                            brand = city.ifBlank { info.title },
                             address = fullAddr.ifBlank { name },
                             regionId = "photon_reverse"
                         )
@@ -324,13 +339,18 @@ class PoiRepository @Inject constructor(
                 if (!addresses.isNullOrEmpty()) {
                     val addr = addresses[0]
                     val placeName = addr.featureName ?: addr.thoroughfare ?: addr.locality ?: "Map Location"
+                    val category = CategoryResolver.resolve(
+                        name = placeName,
+                        rawClass = addr.locality ?: "",
+                        subclass = addr.subLocality ?: ""
+                    )
                     return@withContext PoiEntity(
                         osmId = System.currentTimeMillis(),
                         name = placeName,
-                        category = PoiCategory.STORE.name,
+                        category = category,
                         latitude = latLng.latitude,
                         longitude = latLng.longitude,
-                        brand = addr.locality ?: "Location",
+                        brand = addr.locality ?: CategoryResolver.getCategoryInfo(category).title,
                         address = addr.getAddressLine(0) ?: "$placeName, West Bengal",
                         regionId = "geocoder_reverse"
                     )
@@ -342,10 +362,10 @@ class PoiRepository @Inject constructor(
         PoiEntity(
             osmId = System.currentTimeMillis(),
             name = "Dropped Pin",
-            category = PoiCategory.STORE.name,
+            category = PoiCategory.LOCATION.name,
             latitude = latLng.latitude,
             longitude = latLng.longitude,
-            brand = "Custom Destination",
+            brand = "Custom Point",
             address = "Coordinates: %.4f, %.4f".format(latLng.latitude, latLng.longitude),
             regionId = "custom_pin"
         )
@@ -390,16 +410,16 @@ class PoiRepository @Inject constructor(
                     val osmKey = props.optString("osm_key")
                     val osmVal = props.optString("osm_value")
 
-                    val category = when {
-                        osmVal == "fuel" -> PoiCategory.PETROL.name
-                        osmVal in listOf("restaurant", "fast_food", "cafe", "dhaba") -> PoiCategory.DHABA.name
-                        osmVal in listOf("motorcycle", "car_repair", "tyres", "repair") -> PoiCategory.MECHANIC.name
-                        osmVal in listOf("viewpoint", "attraction", "peak") -> PoiCategory.VIEWPOINT.name
-                        osmKey == "shop" || osmVal in listOf("supermarket", "convenience", "general", "store", "mall") -> PoiCategory.STORE.name
-                        osmVal in listOf("hospital", "pharmacy", "clinic") -> PoiCategory.HOSPITAL.name
-                        osmKey == "place" -> PoiCategory.CITY.name
-                        else -> PoiCategory.STORE.name
-                    }
+                    val category = CategoryResolver.resolve(
+                        name = name,
+                        rawClass = osmKey,
+                        subclass = osmVal,
+                        amenity = if (osmKey == "amenity") osmVal else "",
+                        shop = if (osmKey == "shop") osmVal else "",
+                        tourism = if (osmKey == "tourism") osmVal else "",
+                        historic = if (osmKey == "historic") osmVal else "",
+                        leisure = if (osmKey == "leisure") osmVal else ""
+                    )
 
                     val street = props.optString("street")
                     val city = props.optString("city").takeIf { it.isNotBlank() }
@@ -494,9 +514,19 @@ class PoiRepository @Inject constructor(
         try {
             val tagFilter = when (category) {
                 PoiCategory.PETROL -> """["amenity"="fuel"]"""
-                PoiCategory.DHABA -> """["amenity"~"restaurant|fast_food|cafe"]"""
+                PoiCategory.DHABA -> """["amenity"~"restaurant|fast_food|cafe|dhaba"]"""
+                PoiCategory.RESTAURANT -> """["amenity"~"restaurant|fast_food"]"""
+                PoiCategory.CAFE -> """["amenity"="cafe"]"""
+                PoiCategory.HOTEL -> """["tourism"~"hotel|motel|resort|guest_house"]"""
                 PoiCategory.MECHANIC -> """["shop"~"motorcycle|car_repair|tyres|repair"]"""
                 PoiCategory.VIEWPOINT -> """["tourism"="viewpoint"]"""
+                PoiCategory.HOSPITAL -> """["amenity"~"hospital|clinic"]"""
+                PoiCategory.PHARMACY -> """["amenity"="pharmacy"]"""
+                PoiCategory.ATM -> """["amenity"~"atm|bank"]"""
+                PoiCategory.ATTRACTION -> """["tourism"~"attraction|museum"]"""
+                PoiCategory.PARK -> """["leisure"~"park|garden|nature_reserve"]"""
+                PoiCategory.TEMPLE -> """["amenity"="place_of_worship"]"""
+                PoiCategory.STORE -> """["shop"]"""
                 else -> return emptyList()
             }
 
@@ -595,15 +625,11 @@ class PoiRepository @Inject constructor(
                     val properties = feature.optJSONObject("properties")
                     val categoryStr = properties?.optString("category", "")?.lowercase() ?: ""
 
-                    val category = when {
-                        categoryStr.contains("gas") || categoryStr.contains("fuel") || text.lowercase().contains("petrol") -> PoiCategory.PETROL.name
-                        categoryStr.contains("restaurant") || categoryStr.contains("food") || text.lowercase().contains("dhaba") || categoryStr.contains("cafe") -> PoiCategory.DHABA.name
-                        categoryStr.contains("repair") || categoryStr.contains("auto") || text.lowercase().contains("mechanic") -> PoiCategory.MECHANIC.name
-                        categoryStr.contains("viewpoint") || categoryStr.contains("attraction") -> PoiCategory.VIEWPOINT.name
-                        categoryStr.contains("shop") || categoryStr.contains("store") || categoryStr.contains("grocery") || categoryStr.contains("supermarket") || categoryStr.contains("mall") -> PoiCategory.STORE.name
-                        categoryStr.contains("hospital") || categoryStr.contains("pharmacy") || categoryStr.contains("medical") -> PoiCategory.HOSPITAL.name
-                        else -> PoiCategory.STORE.name
-                    }
+                    val category = CategoryResolver.resolve(
+                        name = text,
+                        category = categoryStr,
+                        rawClass = feature.optString("place_type", "")
+                    )
 
                     list.add(
                         PoiEntity(
@@ -655,7 +681,12 @@ class PoiRepository @Inject constructor(
         // 2. Query Mapbox Places API for real stores & amenities across the state bounding box
         if (ApiConfig.isMapboxConfigured) {
             onProgress("Fetching detailed Mapbox stores & amenities for ${region.displayName}...")
-            val searchCategories = listOf("supermarket store", "grocery store", "gas station petrol", "dhaba restaurant", "motorcycle repair", "pharmacy hospital")
+            val searchCategories = listOf(
+                "supermarket store", "grocery store", "gas station petrol",
+                "dhaba restaurant", "cafe bakery", "hotel resort",
+                "motorcycle repair", "pharmacy hospital", "tourist attraction viewpoint",
+                "temple place of worship", "atm bank"
+            )
             val token = ApiConfig.MAPBOX_ACCESS_TOKEN
             for (queryTerm in searchCategories) {
                 try {
@@ -679,13 +710,11 @@ class PoiRepository @Inject constructor(
                             val text = feat.optString("text")
                             val placeName = feat.optString("place_name")
 
-                            val cat = when {
-                                queryTerm.contains("petrol") || queryTerm.contains("gas") -> PoiCategory.PETROL.name
-                                queryTerm.contains("dhaba") || queryTerm.contains("restaurant") -> PoiCategory.DHABA.name
-                                queryTerm.contains("repair") || queryTerm.contains("motorcycle") -> PoiCategory.MECHANIC.name
-                                queryTerm.contains("hospital") || queryTerm.contains("pharmacy") -> PoiCategory.HOSPITAL.name
-                                else -> PoiCategory.STORE.name
-                            }
+                            val cat = CategoryResolver.resolve(
+                                name = text,
+                                category = queryTerm,
+                                rawClass = feat.optString("place_type", "")
+                            )
 
                             val poi = PoiEntity(
                                 osmId = 9000000L + downloadedPois.size + i,
@@ -716,9 +745,11 @@ class PoiRepository @Inject constructor(
                 [out:json][timeout:8];
                 (
                   node["shop"](${region.minLat},${region.minLng},${region.maxLat},${region.maxLng});
-                  node["amenity"~"fuel|restaurant|cafe|pharmacy|hospital"](${region.minLat},${region.minLng},${region.maxLat},${region.maxLng});
+                  node["amenity"~"fuel|restaurant|cafe|pharmacy|hospital|atm|bank|place_of_worship|police"](${region.minLat},${region.minLng},${region.maxLat},${region.maxLng});
+                  node["tourism"~"hotel|motel|viewpoint|attraction|museum|guest_house|resort"](${region.minLat},${region.minLng},${region.maxLat},${region.maxLng});
+                  node["leisure"~"park|garden|nature_reserve"](${region.minLat},${region.minLng},${region.maxLat},${region.maxLng});
                 );
-                out body 100;
+                out body 250;
             """.trimIndent()
 
             val conn = URL(OVERPASS_API).openConnection() as HttpURLConnection
@@ -750,15 +781,18 @@ class PoiRepository @Inject constructor(
 
                         val shopVal = tags.optString("shop")
                         val amenityVal = tags.optString("amenity")
+                        val tourismVal = tags.optString("tourism")
+                        val leisureVal = tags.optString("leisure")
 
-                        val cat = when {
-                            amenityVal == "fuel" -> PoiCategory.PETROL.name
-                            amenityVal in listOf("restaurant", "cafe", "fast_food") -> PoiCategory.DHABA.name
-                            amenityVal in listOf("pharmacy", "hospital", "clinic") -> PoiCategory.HOSPITAL.name
-                            shopVal in listOf("motorcycle", "car_repair", "tyres") -> PoiCategory.MECHANIC.name
-                            shopVal.isNotBlank() -> PoiCategory.STORE.name
-                            else -> PoiCategory.STORE.name
-                        }
+                        val cat = CategoryResolver.resolve(
+                            name = name,
+                            rawClass = amenityVal,
+                            subclass = shopVal,
+                            amenity = amenityVal,
+                            shop = shopVal,
+                            tourism = tourismVal,
+                            leisure = leisureVal
+                        )
 
                         val brand = tags.optString("brand").takeIf { it.isNotBlank() }
                             ?: tags.optString("operator").takeIf { it.isNotBlank() }

@@ -121,15 +121,8 @@ fun PoiDetailCard(
         }
     }
 
-    val categoryBadge = when (poi.category) {
-        "PETROL" -> "⛽ 24/7 Fuel Station" to Color(0xFFF59E0B)
-        "DHABA", "RESTAURANT" -> "🍛 Biker Dhaba & Food" to Color(0xFFF97316)
-        "MECHANIC" -> "🔧 Motorcycle Workshop" to Color(0xFF38BDF8)
-        "STORE" -> "🛒 Store & Daily Needs" to Color(0xFF10B981)
-        "HOSPITAL" -> "🏥 Pharmacy & Hospital" to Color(0xFFEF4444)
-        "VIEWPOINT" -> "🏔️ Scenic Viewpoint" to Color(0xFF8B5CF6)
-        else -> "📍 Place & Amenity" to Color(0xFF94A3B8)
-    }
+    val categoryInfo = com.motonav.data.model.CategoryResolver.getCategoryInfo(poi.category)
+    val categoryBadge = categoryInfo.title to categoryInfo.color
 
     Box(
         modifier = modifier

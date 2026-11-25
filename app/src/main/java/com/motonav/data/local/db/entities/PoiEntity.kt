@@ -8,14 +8,22 @@ enum class PoiCategory {
     PETROL,
     RESTAURANT,
     DHABA,
+    CAFE,
+    HOTEL,
     MECHANIC,
     ATM,
     HOSPITAL,
-    HOTEL,
+    PHARMACY,
     VIEWPOINT,
+    ATTRACTION,
+    PARK,
+    TEMPLE,
+    POLICE,
+    TOLL,
     WATER,
     STORE,
-    CITY
+    CITY,
+    LOCATION
 }
 
 @Entity(
