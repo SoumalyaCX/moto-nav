@@ -73,10 +73,11 @@ class MapStyleManager @Inject constructor(
             buildLocalPmtilesStyle(pmtilesFile, isDarkTheme)
         } else if (!forceOffline) {
             if (ApiConfig.isMapboxConfigured) {
+                // High-density Mapbox Navigation styles with highway shields and 3D buildings
                 if (isDarkTheme) {
-                    "https://api.mapbox.com/styles/v1/mapbox/dark-v11?access_token=${ApiConfig.MAPBOX_ACCESS_TOKEN}"
+                    "https://api.mapbox.com/styles/v1/mapbox/navigation-night-v1?access_token=${ApiConfig.MAPBOX_ACCESS_TOKEN}"
                 } else {
-                    "https://api.mapbox.com/styles/v1/mapbox/streets-v12?access_token=${ApiConfig.MAPBOX_ACCESS_TOKEN}"
+                    "https://api.mapbox.com/styles/v1/mapbox/navigation-day-v1?access_token=${ApiConfig.MAPBOX_ACCESS_TOKEN}"
                 }
             } else {
                 // Fallback to free OpenFreeMap without API keys
@@ -89,11 +90,16 @@ class MapStyleManager @Inject constructor(
     }
 
     private fun buildLocalPmtilesStyle(pmtilesFile: File, isDark: Boolean): String {
-        // Ultra-modern, minimal motorcycle cockpit map palette
+        // High-density motorcycle cockpit map palette with greenery, buildings, and highway shields
         val bgColor = if (isDark) "#080C14" else "#F8FAFC"
         val waterColor = if (isDark) "#0B1628" else "#BAE6FD"
+        val parkColor = if (isDark) "#0E2419" else "#DCFCE7"
+        val buildingColor = if (isDark) "#111827" else "#E2E8F0"
+        val buildingBorder = if (isDark) "#1E293B" else "#CBD5E1"
+        val expresswayColor = if (isDark) "#F59E0B" else "#D97706"
         val primaryRoadColor = if (isDark) "#0284C7" else "#0369A1"
-        val secondaryRoadColor = if (isDark) "#1E293B" else "#CBD5E1"
+        val secondaryRoadColor = if (isDark) "#334155" else "#94A3B8"
+        val minorRoadColor = if (isDark) "#1E293B" else "#E2E8F0"
         val textColor = if (isDark) "#F1F5F9" else "#0F172A"
         val textHalo = if (isDark) "#080C14" else "#FFFFFF"
 
@@ -102,7 +108,7 @@ class MapStyleManager @Inject constructor(
         return """
         {
           "version": 8,
-          "name": "MotoNav Minimalist ${if (isDark) "Obsidian Dark" else "Clean Light"}",
+          "name": "MotoNav Dense Biker ${if (isDark) "Night" else "Day"}",
           "sources": {
             "openmaptiles": {
               "type": "vector",
@@ -119,12 +125,45 @@ class MapStyleManager @Inject constructor(
               }
             },
             {
+              "id": "landuse_park",
+              "type": "fill",
+              "source": "openmaptiles",
+              "source-layer": "landuse",
+              "filter": ["in", "class", "park", "forest", "grass", "recreation_ground"],
+              "paint": {
+                "fill-color": "$parkColor",
+                "fill-opacity": 0.85
+              }
+            },
+            {
               "id": "water",
               "type": "fill",
               "source": "openmaptiles",
               "source-layer": "water",
               "paint": {
                 "fill-color": "$waterColor"
+              }
+            },
+            {
+              "id": "building_footprints",
+              "type": "fill",
+              "source": "openmaptiles",
+              "source-layer": "building",
+              "paint": {
+                "fill-color": "$buildingColor",
+                "fill-outline-color": "$buildingBorder"
+              }
+            },
+            {
+              "id": "road_minor",
+              "type": "line",
+              "source": "openmaptiles",
+              "source-layer": "transportation",
+              "filter": ["in", "class", "minor", "service", "residential"],
+              "minzoom": 12,
+              "paint": {
+                "line-color": "$minorRoadColor",
+                "line-width": ["interpolate", ["linear"], ["zoom"], 12, 1.0, 16, 3.5]
               }
             },
             {
@@ -135,7 +174,7 @@ class MapStyleManager @Inject constructor(
               "filter": ["in", "class", "secondary", "tertiary"],
               "paint": {
                 "line-color": "$secondaryRoadColor",
-                "line-width": ["interpolate", ["linear"], ["zoom"], 8, 1.5, 16, 6]
+                "line-width": ["interpolate", ["linear"], ["zoom"], 7, 1.5, 16, 6.0]
               }
             },
             {
@@ -146,7 +185,18 @@ class MapStyleManager @Inject constructor(
               "filter": ["==", "class", "primary"],
               "paint": {
                 "line-color": "$primaryRoadColor",
-                "line-width": ["interpolate", ["linear"], ["zoom"], 7, 2.5, 16, 9]
+                "line-width": ["interpolate", ["linear"], ["zoom"], 6, 2.5, 16, 9.0]
+              }
+            },
+            {
+              "id": "road_motorway_trunk",
+              "type": "line",
+              "source": "openmaptiles",
+              "source-layer": "transportation",
+              "filter": ["in", "class", "motorway", "trunk"],
+              "paint": {
+                "line-color": "$expresswayColor",
+                "line-width": ["interpolate", ["linear"], ["zoom"], 5, 2.8, 16, 12.0]
               }
             },
             {
@@ -163,6 +213,21 @@ class MapStyleManager @Inject constructor(
                 "text-color": "$textColor",
                 "text-halo-color": "$textHalo",
                 "text-halo-width": 2.5
+              }
+            },
+            {
+              "id": "place_labels",
+              "type": "symbol",
+              "source": "openmaptiles",
+              "source-layer": "place",
+              "layout": {
+                "text-field": "{name}",
+                "text-size": ["interpolate", ["linear"], ["zoom"], 6, 10, 14, 16]
+              },
+              "paint": {
+                "text-color": "$textColor",
+                "text-halo-color": "$textHalo",
+                "text-halo-width": 2.0
               }
             },
             {

@@ -32,6 +32,20 @@ interface PoiDao {
 
     @Query("""
         SELECT * FROM pois 
+        WHERE latitude BETWEEN :minLat AND :maxLat 
+          AND longitude BETWEEN :minLng AND :maxLng
+        LIMIT :limit
+    """)
+    suspend fun getPoisInBounds(
+        minLat: Double,
+        maxLat: Double,
+        minLng: Double,
+        maxLng: Double,
+        limit: Int = 120
+    ): List<PoiEntity>
+
+    @Query("""
+        SELECT * FROM pois 
         WHERE category = :category
           AND latitude BETWEEN :minLat AND :maxLat 
           AND longitude BETWEEN :minLng AND :maxLng

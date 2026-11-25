@@ -82,13 +82,15 @@ import com.motonav.map.MapStyleManager
 import com.motonav.ui.screens.map.components.MapSearchBar
 import com.motonav.ui.screens.map.components.PoiQuickFilters
 import com.motonav.ui.screens.map.components.PoiDetailCard
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import com.motonav.navigation.GpxParser
+import com.motonav.ui.screens.map.components.RouteIntelAccordion
 import com.motonav.ui.widgets.BatteryWidget
 import com.motonav.ui.widgets.CockpitPulseIndicator
 import com.motonav.ui.widgets.CompassWidget
 import com.motonav.ui.widgets.LeanAngleWidget
 import com.motonav.ui.widgets.OrientationLockButton
-import com.motonav.ui.widgets.RouteElevationChart
 import com.motonav.ui.widgets.ScreenOrientationLock
 import com.motonav.ui.widgets.SpeedIndicator
 import dev.chrisbanes.haze.HazeState
@@ -164,99 +166,109 @@ fun MapScreen(
             onPoiClicked = { viewModel.onPoiSelected(it) },
             onMapCoordinateTapped = { viewModel.onMapCoordinateTapped(it) },
             onDismissPoi = { viewModel.dismissPoiDetails() },
+            onViewportChanged = { minLat, maxLat, minLng, maxLng ->
+                viewModel.onViewportChanged(minLat, maxLat, minLng, maxLng)
+            },
             modifier = Modifier.fillMaxSize().haze(hazeState)
         )
 
-        // 2. Top Layer: Compact expandable search button & category pills
-        Column(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(start = 16.dp, top = 14.dp, end = if (isLandscape) 90.dp else 16.dp)
-                .fillMaxWidth(if (isLandscape && isSearchExpanded) 0.52f else if (isSearchExpanded) 1f else 0.15f)
+        // 2. Top Layer: Compact expandable search button & category pills (hidden in landscape when route or POI card is open)
+        val hideSearchInLandscape = isLandscape && (uiState.calculatedRoute != null || uiState.selectedPoi != null)
+        AnimatedVisibility(
+            visible = !hideSearchInLandscape,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.TopStart)
         ) {
-            MapSearchBar(
-                query = uiState.searchQuery,
-                onQueryChange = { viewModel.onSearchQueryChanged(it) },
-                onSearch = { viewModel.onSearchQueryChanged(it) },
-                onClear = { viewModel.onSearchQueryChanged("") },
-                isExpanded = isSearchExpanded,
-                onToggleExpand = {
-                    isSearchExpanded = !isSearchExpanded
-                    if (!isSearchExpanded) {
-                        viewModel.onSearchQueryChanged("")
-                        viewModel.onCategoryFilterSelected(null)
-                    }
-                }
-            )
-
-            // Category filter pills: ONLY visible when search is active
-            AnimatedVisibility(
-                visible = isSearchExpanded,
-                enter = fadeIn() + slideInVertically { -it / 2 },
-                exit = fadeOut() + slideOutVertically { -it / 2 }
+            Column(
+                modifier = Modifier
+                    .padding(start = 16.dp, top = 14.dp, end = if (isLandscape) 90.dp else 16.dp)
+                    .fillMaxWidth(if (isLandscape && isSearchExpanded) 0.52f else if (isSearchExpanded) 1f else 0.15f)
             ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    PoiQuickFilters(
-                        selectedCategory = uiState.selectedCategory,
-                        onCategorySelected = { viewModel.onCategoryFilterSelected(it) }
-                    )
+                MapSearchBar(
+                    query = uiState.searchQuery,
+                    onQueryChange = { viewModel.onSearchQueryChanged(it) },
+                    onSearch = { viewModel.onSearchQueryChanged(it) },
+                    onClear = { viewModel.onSearchQueryChanged("") },
+                    isExpanded = isSearchExpanded,
+                    onToggleExpand = {
+                        isSearchExpanded = !isSearchExpanded
+                        if (!isSearchExpanded) {
+                            viewModel.onSearchQueryChanged("")
+                            viewModel.onCategoryFilterSelected(null)
+                        }
+                    }
+                )
 
-                    // Search Results or Category Results dropdown
-                    if ((uiState.searchQuery.isNotBlank() || uiState.selectedCategory != null) && uiState.nearbyPois.isNotEmpty()) {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 6.dp)
-                                .border(BorderStroke(1.dp, GlassSpecularBorder), RoundedCornerShape(18.dp)),
-                            shape = RoundedCornerShape(18.dp),
-                            colors = CardDefaults.cardColors(containerColor = GlassBackground)
-                        ) {
-                            LazyColumn(
+                // Category filter pills: ONLY visible when search is active
+                AnimatedVisibility(
+                    visible = isSearchExpanded,
+                    enter = fadeIn() + slideInVertically { -it / 2 },
+                    exit = fadeOut() + slideOutVertically { -it / 2 }
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        PoiQuickFilters(
+                            selectedCategory = uiState.selectedCategory,
+                            onCategorySelected = { viewModel.onCategoryFilterSelected(it) }
+                        )
+
+                        // Search Results or Category Results dropdown
+                        if ((uiState.searchQuery.isNotBlank() || uiState.selectedCategory != null) && uiState.nearbyPois.isNotEmpty()) {
+                            Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .heightIn(max = if (isLandscape) 180.dp else 260.dp)
-                                    .padding(6.dp)
+                                    .padding(top = 6.dp)
+                                    .border(BorderStroke(1.dp, GlassSpecularBorder), RoundedCornerShape(18.dp)),
+                                shape = RoundedCornerShape(18.dp),
+                                colors = CardDefaults.cardColors(containerColor = GlassBackground)
                             ) {
-                                items(uiState.nearbyPois) { poi ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                viewModel.onPoiSelected(poi)
-                                                isSearchExpanded = false
+                                LazyColumn(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = if (isLandscape) 180.dp else 260.dp)
+                                        .padding(6.dp)
+                                ) {
+                                    items(uiState.nearbyPois) { poi ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    viewModel.onPoiSelected(poi)
+                                                    isSearchExpanded = false
+                                                }
+                                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            val iconEmoji = com.motonav.data.model.CategoryResolver.getCategoryInfo(poi.category).emoji
+                                            Text(text = iconEmoji, fontSize = 20.sp)
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = poi.name,
+                                                    color = Color.White,
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                Text(
+                                                    text = poi.address ?: poi.brand ?: "West Bengal",
+                                                    color = Color.LightGray,
+                                                    fontSize = 11.sp,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
                                             }
-                                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        val iconEmoji = com.motonav.data.model.CategoryResolver.getCategoryInfo(poi.category).emoji
-                                        Text(text = iconEmoji, fontSize = 20.sp)
-                                        Spacer(modifier = Modifier.width(10.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
+                                            val distKm = LatLng(uiState.userLocation.latitude, uiState.userLocation.longitude)
+                                                .distanceTo(LatLng(poi.latitude, poi.longitude)) / 1000.0
                                             Text(
-                                                text = poi.name,
-                                                color = Color.White,
-                                                fontSize = 14.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            Text(
-                                                text = poi.address ?: poi.brand ?: "West Bengal",
-                                                color = Color.LightGray,
-                                                fontSize = 11.sp,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
+                                                text = "%.0f km".format(distKm),
+                                                color = Color(0xFF38BDF8),
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold
                                             )
                                         }
-                                        val distKm = LatLng(uiState.userLocation.latitude, uiState.userLocation.longitude)
-                                            .distanceTo(LatLng(poi.latitude, poi.longitude)) / 1000.0
-                                        Text(
-                                            text = "%.0f km".format(distKm),
-                                            color = Color(0xFF38BDF8),
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
+                                        Divider(color = Color.White.copy(alpha = 0.08f), thickness = 0.5.dp)
                                     }
-                                    Divider(color = Color.White.copy(alpha = 0.08f), thickness = 0.5.dp)
                                 }
                             }
                         }
@@ -265,16 +277,16 @@ fun MapScreen(
             }
         }
 
-        // 3a. Interactive POI / Shop Detail Card (shown when user taps any shop or map marker)
+        // 3a. Interactive POI / Shop Detail Card (docked on left in landscape)
         AnimatedVisibility(
             visible = uiState.selectedPoi != null,
             enter = fadeIn() + slideInVertically { it },
             exit = fadeOut() + slideOutVertically { it },
             modifier = (if (isLandscape) {
                 Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(start = 16.dp, bottom = 86.dp)
-                    .width(360.dp)
+                    .align(Alignment.TopStart)
+                    .padding(start = 16.dp, top = 16.dp, bottom = 16.dp)
+                    .width(350.dp)
             } else {
                 Modifier
                     .align(Alignment.BottomCenter)
@@ -287,21 +299,22 @@ fun MapScreen(
                     poi = poi,
                     userLocation = uiState.userLocation,
                     onRideHere = { viewModel.rideToPoi(it) },
-                    onDismiss = { viewModel.dismissPoiDetails() }
+                    onDismiss = { viewModel.dismissPoiDetails() },
+                    modifier = if (isLandscape) Modifier.fillMaxHeight() else Modifier
                 )
             }
         }
 
-        // 3b. Calculated Route Overview Card
+        // 3b. Calculated Route Overview Card (docked on left in landscape with scrollable Route Intel Accordion)
         AnimatedVisibility(
             visible = uiState.calculatedRoute != null && uiState.selectedPoi == null,
             enter = fadeIn() + slideInVertically { it },
             exit = fadeOut() + slideOutVertically { it },
             modifier = (if (isLandscape) {
                 Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(start = 16.dp, bottom = 86.dp)
-                    .width(300.dp)
+                    .align(Alignment.TopStart)
+                    .padding(start = 16.dp, top = 16.dp, bottom = 16.dp)
+                    .width(350.dp)
             } else {
                 Modifier
                     .align(Alignment.BottomCenter)
@@ -313,11 +326,16 @@ fun MapScreen(
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .then(if (isLandscape) Modifier.fillMaxHeight() else Modifier)
                         .border(BorderStroke(1.dp, GlassSpecularBorder), RoundedCornerShape(20.dp)),
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = GlassBackground)
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
+                    Column(
+                        modifier = Modifier
+                            .padding(14.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -385,12 +403,14 @@ fun MapScreen(
                             }
                         }
 
-                        // Route Elevation & Terrain Profile (Vico Charts)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        RouteElevationChart(
-                            title = "⛰️ Altitude Profile (${route.ridingStyle})",
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        // Route Intel Accordion: 3 Switchable Tabs (Road & Tolls, Fuel & Pitstops, Twisties)
+                        uiState.routeIntel?.let { intel ->
+                            Spacer(modifier = Modifier.height(8.dp))
+                            RouteIntelAccordion(
+                                intel = intel,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
 
                         Spacer(modifier = Modifier.height(10.dp))
                         Button(
@@ -420,13 +440,17 @@ fun MapScreen(
             }
         }
 
-        // 4. Spotify Player: Placed at bottom-left in landscape mode with Haze glassmorphism
+        // 4. Spotify Player: in landscape, placed at bottom-right if route/poi card is open to avoid ANY overlap
         Box(
             modifier = (if (isLandscape) {
                 Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(start = 16.dp, bottom = 14.dp)
-                    .width(300.dp)
+                    .align(if (uiState.calculatedRoute != null || uiState.selectedPoi != null) Alignment.BottomEnd else Alignment.BottomStart)
+                    .padding(
+                        start = if (uiState.calculatedRoute != null || uiState.selectedPoi != null) 0.dp else 16.dp,
+                        end = if (uiState.calculatedRoute != null || uiState.selectedPoi != null) 86.dp else 0.dp,
+                        bottom = 14.dp
+                    )
+                    .width(280.dp)
             } else {
                 Modifier
                     .align(Alignment.BottomCenter)
@@ -764,6 +788,7 @@ fun MapViewportCanvas(
     onPoiClicked: (com.motonav.data.local.db.entities.PoiEntity) -> Unit = {},
     onMapCoordinateTapped: (com.motonav.data.model.LatLng) -> Unit = {},
     onDismissPoi: () -> Unit = {},
+    onViewportChanged: (Double, Double, Double, Double) -> Unit = { _, _, _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -956,11 +981,24 @@ fun MapViewportCanvas(
                 true
             }
 
+            map.addOnCameraIdleListener {
+                try {
+                    val bounds = map.projection.visibleRegion.latLngBounds
+                    onViewportChanged(
+                        bounds.latitudeSouth,
+                        bounds.latitudeNorth,
+                        bounds.longitudeWest,
+                        bounds.longitudeEast
+                    )
+                } catch (ignored: Exception) {}
+            }
+
             if (loadedStyleKey != resolvedStyle) {
                 isMapReady = false
                 loadStyleWithFallback(map, mapView, resolvedStyle) {
                     loadedStyleKey = resolvedStyle
                     isMapReady = true
+                    enable3DBuildings(map)
                     updateMapCameraAndLayers(map, uiState, isFrontFacing)
                 }
             } else if (isMapReady) {
@@ -975,7 +1013,7 @@ fun MapViewportCanvas(
             mapInstance?.let { map ->
                 val userPos = MapLibreLatLng(uiState.userLocation.latitude, uiState.userLocation.longitude)
                 val targetBearing = if (isFrontFacing) uiState.bearing.toDouble() else 0.0
-                val targetTilt = if (isFrontFacing) 45.0 else 0.0
+                val targetTilt = if (isFrontFacing) 42.0 else 0.0
                 val cameraPosition = CameraPosition.Builder()
                     .target(userPos)
                     .zoom(15.5)
@@ -986,6 +1024,31 @@ fun MapViewportCanvas(
             }
         }
     }
+}
+
+private fun enable3DBuildings(map: MapLibreMap) {
+    try {
+        val style = map.style ?: return
+        if (style.getLayer("3d-buildings") != null) return
+
+        val sourceId = if (style.getSource("composite") != null) "composite" else "openmaptiles"
+        if (style.getSource(sourceId) == null) return
+
+        val buildingLayer = org.maplibre.android.style.layers.FillExtrusionLayer("3d-buildings", sourceId)
+        buildingLayer.sourceLayer = "building"
+        buildingLayer.minZoom = 14.5f
+        buildingLayer.setProperties(
+            org.maplibre.android.style.layers.PropertyFactory.fillExtrusionColor(android.graphics.Color.parseColor("#141E33")),
+            org.maplibre.android.style.layers.PropertyFactory.fillExtrusionHeight(
+                org.maplibre.android.style.expressions.Expression.get("height")
+            ),
+            org.maplibre.android.style.layers.PropertyFactory.fillExtrusionBase(
+                org.maplibre.android.style.expressions.Expression.get("min_height")
+            ),
+            org.maplibre.android.style.layers.PropertyFactory.fillExtrusionOpacity(0.85f)
+        )
+        style.addLayer(buildingLayer)
+    } catch (ignored: Exception) {}
 }
 
 private fun loadStyleWithFallback(
@@ -1059,10 +1122,10 @@ private fun updateMapCameraAndLayers(
 ) {
     val userPos = MapLibreLatLng(uiState.userLocation.latitude, uiState.userLocation.longitude)
 
-    // 1. Camera orientation
+    // 1. Camera orientation & subtle 3D tilt when zoomed into street level
     val currentCamera = map.cameraPosition
     val targetBearing = if (isFrontFacing) uiState.bearing.toDouble() else 0.0
-    val targetTilt = if (isFrontFacing) 45.0 else 0.0
+    val targetTilt = if (isFrontFacing || currentCamera.zoom >= 14.8) 38.0 else 0.0
 
     val currentTarget = currentCamera.target
     if (currentTarget == null || (currentTarget.latitude == 0.0 && currentTarget.longitude == 0.0)) {
@@ -1098,8 +1161,8 @@ private fun updateMapCameraAndLayers(
         }
     }
 
-    // Draw POIs with rich density and accurate category iconography
-    uiState.nearbyPois.take(120).forEach { poi ->
+    // Draw POIs with rich density and accurate category iconography (up to 160 simultaneous places)
+    uiState.nearbyPois.take(160).forEach { poi ->
         val isSelected = uiState.selectedPoi?.osmId == poi.osmId
         val emoji = com.motonav.data.model.CategoryResolver.getCategoryInfo(poi.category).emoji
         val prefix = if (isSelected) "⭐ " else ""

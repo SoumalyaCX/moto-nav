@@ -7,6 +7,7 @@ import com.motonav.data.local.db.entities.PoiCategory
 import com.motonav.data.local.db.entities.PoiEntity
 import com.motonav.data.model.LatLng
 import com.motonav.data.model.NavigationRoute
+import com.motonav.data.model.RouteIntel
 import com.motonav.data.repository.PoiRepository
 import com.motonav.integrations.battery.BatteryOptimizer
 import com.motonav.integrations.spotify.SpotifyPlayerState
@@ -21,6 +22,8 @@ import com.motonav.navigation.MotorcycleRoutingOptions
 import com.motonav.navigation.OrientationManager
 import com.motonav.navigation.RidingStyle
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -43,6 +46,7 @@ data class MapUiState(
     val calculatedRoute: NavigationRoute? = null,
     val availableRoutes: List<NavigationRoute> = emptyList(),
     val selectedRouteFlavorIndex: Int = 0,
+    val routeIntel: RouteIntel? = null,
     val isCalculatingRoute: Boolean = false,
     val activeRegionId: String = "west_bengal",
     val isDarkTheme: Boolean = true
@@ -182,10 +186,15 @@ class MapViewModel @Inject constructor(
             )
 
             result.onSuccess { routes ->
+                val primary = routes.firstOrNull()
+                val corridorPois = primary?.let { poiRepository.getPoisForCorridor(it.points) } ?: emptyList()
+                val intel = primary?.let { RouteIntel.calculate(it, corridorPois) }
+
                 _uiState.value = _uiState.value.copy(
                     availableRoutes = routes,
-                    calculatedRoute = routes.firstOrNull(),
+                    calculatedRoute = primary,
                     selectedRouteFlavorIndex = 0,
+                    routeIntel = intel,
                     isCalculatingRoute = false
                 )
             }.onFailure {
@@ -197,20 +206,31 @@ class MapViewModel @Inject constructor(
     fun selectRouteFlavor(index: Int) {
         val routes = _uiState.value.availableRoutes
         if (index in routes.indices) {
-            _uiState.value = _uiState.value.copy(
-                selectedRouteFlavorIndex = index,
-                calculatedRoute = routes[index]
-            )
+            val selected = routes[index]
+            viewModelScope.launch {
+                val corridorPois = poiRepository.getPoisForCorridor(selected.points)
+                val intel = RouteIntel.calculate(selected, corridorPois)
+                _uiState.value = _uiState.value.copy(
+                    selectedRouteFlavorIndex = index,
+                    calculatedRoute = selected,
+                    routeIntel = intel
+                )
+            }
         }
     }
 
     fun loadGpxRoute(route: NavigationRoute) {
-        _uiState.value = _uiState.value.copy(
-            availableRoutes = listOf(route),
-            calculatedRoute = route,
-            selectedRouteFlavorIndex = 0,
-            selectedPoi = null
-        )
+        viewModelScope.launch {
+            val corridorPois = poiRepository.getPoisForCorridor(route.points)
+            val intel = RouteIntel.calculate(route, corridorPois)
+            _uiState.value = _uiState.value.copy(
+                availableRoutes = listOf(route),
+                calculatedRoute = route,
+                selectedRouteFlavorIndex = 0,
+                routeIntel = intel,
+                selectedPoi = null
+            )
+        }
     }
 
     fun resetMaxLean() {
@@ -229,8 +249,28 @@ class MapViewModel @Inject constructor(
             calculatedRoute = null,
             availableRoutes = emptyList(),
             selectedPoi = null,
-            selectedRouteFlavorIndex = 0
+            selectedRouteFlavorIndex = 0,
+            routeIntel = null
         )
+    }
+
+    private var viewportJob: Job? = null
+
+    /**
+     * Called when map camera completes a move or zoom anywhere on the globe.
+     * Loads POIs within visible bounds dynamically so the map is never empty.
+     */
+    fun onViewportChanged(minLat: Double, maxLat: Double, minLng: Double, maxLng: Double) {
+        viewportJob?.cancel()
+        viewportJob = viewModelScope.launch {
+            delay(300) // Debounce rapid continuous drags
+            val pois = poiRepository.getPoisInBounds(minLat, maxLat, minLng, maxLng, limit = 120)
+            if (pois.isNotEmpty()) {
+                val current = _uiState.value.nearbyPois
+                val merged = (current + pois).distinctBy { it.osmId }.take(150)
+                _uiState.value = _uiState.value.copy(nearbyPois = merged)
+            }
+        }
     }
 
     // Spotify controls

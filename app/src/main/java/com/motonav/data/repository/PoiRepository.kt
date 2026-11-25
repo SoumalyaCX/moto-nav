@@ -104,6 +104,35 @@ class PoiRepository @Inject constructor(
         }.take(limit)
     }
 
+    suspend fun getPoisInBounds(
+        minLat: Double,
+        maxLat: Double,
+        minLng: Double,
+        maxLng: Double,
+        limit: Int = 120
+    ): List<PoiEntity> = withContext(Dispatchers.IO) {
+        poiDao.getPoisInBounds(minLat, maxLat, minLng, maxLng, limit)
+    }
+
+    suspend fun getPoisForCorridor(
+        points: List<LatLng>,
+        bufferKm: Double = 2.0
+    ): List<PoiEntity> = withContext(Dispatchers.IO) {
+        if (points.isEmpty()) return@withContext emptyList()
+        val minLat = points.minOf { it.latitude } - (bufferKm / 111.0)
+        val maxLat = points.maxOf { it.latitude } + (bufferKm / 111.0)
+        val minLng = points.minOf { it.longitude } - (bufferKm / 111.0)
+        val maxLng = points.maxOf { it.longitude } + (bufferKm / 111.0)
+
+        val candidatePois = poiDao.getPoisInBounds(minLat, maxLat, minLng, maxLng, limit = 250)
+        // Filter candidate POIs within bufferKm of any point on the route polyline
+        val bufferMeters = bufferKm * 1000.0
+        candidatePois.filter { poi ->
+            val poiCoord = LatLng(poi.latitude, poi.longitude)
+            points.any { pt -> pt.distanceTo(poiCoord) <= bufferMeters }
+        }
+    }
+
     suspend fun searchPois(
         query: String,
         userLocation: LatLng? = null,
