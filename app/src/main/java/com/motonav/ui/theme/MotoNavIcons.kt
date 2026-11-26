@@ -54,7 +54,7 @@ import androidx.compose.material.icons.filled.TurnSharpLeft
 import androidx.compose.material.icons.filled.TurnSharpRight
 import androidx.compose.material.icons.filled.TurnSlightLeft
 import androidx.compose.material.icons.filled.TurnSlightRight
-import androidx.compose.material.icons.filled.UturnLeft
+import androidx.compose.material.icons.filled.UTurnLeft
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.ui.graphics.vector.ImageVector
 
@@ -106,7 +106,7 @@ object MotoNavIcons {
     val TurnSlightRightManeuver: ImageVector = Icons.Default.TurnSlightRight
     val TurnSharpLeftManeuver: ImageVector = Icons.Default.TurnSharpLeft
     val TurnSharpRightManeuver: ImageVector = Icons.Default.TurnSharpRight
-    val UTurnManeuver: ImageVector = Icons.Default.UturnLeft
+    val UTurnManeuver: ImageVector = Icons.Default.UTurnLeft
     val RoundaboutManeuver: ImageVector = Icons.Default.RoundaboutRight
 
     // Cockpit & Media Controls
