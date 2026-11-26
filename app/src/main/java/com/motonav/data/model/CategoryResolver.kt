@@ -1,7 +1,9 @@
 package com.motonav.data.model
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import com.motonav.data.local.db.entities.PoiCategory
+import com.motonav.ui.theme.MotoNavIcons
 
 data class CategoryInfo(
     val category: String,
@@ -208,24 +210,44 @@ object CategoryResolver {
 
     fun getCategoryInfo(category: String): CategoryInfo {
         return when (category.uppercase().trim()) {
-            "PETROL" -> CategoryInfo("PETROL", "⛽ 24/7 Fuel Station", "⛽", Color(0xFFF59E0B))
-            "DHABA" -> CategoryInfo("DHABA", "🍛 Highway Dhaba & Food", "🍛", Color(0xFFF97316))
-            "RESTAURANT" -> CategoryInfo("RESTAURANT", "🍽️ Restaurant & Dining", "🍽️", Color(0xFFFB923C))
-            "CAFE" -> CategoryInfo("CAFE", "☕ Cafe & Bakery", "☕", Color(0xFFD97706))
-            "HOTEL" -> CategoryInfo("HOTEL", "🏨 Hotel & Lodging", "🏨", Color(0xFF6366F1))
-            "MECHANIC" -> CategoryInfo("MECHANIC", "🔧 Motorcycle Workshop", "🔧", Color(0xFF38BDF8))
-            "HOSPITAL" -> CategoryInfo("HOSPITAL", "🏥 Hospital & Emergency", "🏥", Color(0xFFEF4444))
-            "PHARMACY" -> CategoryInfo("PHARMACY", "💊 Pharmacy & Chemist", "💊", Color(0xFFF43F5E))
-            "ATM" -> CategoryInfo("ATM", "💳 ATM & Banking", "💳", Color(0xFF06B6D4))
-            "VIEWPOINT" -> CategoryInfo("VIEWPOINT", "🏔️ Scenic Viewpoint", "🏔️", Color(0xFF8B5CF6))
-            "ATTRACTION" -> CategoryInfo("ATTRACTION", "🏛️ Monument & Heritage", "🏛️", Color(0xFFA855F7))
-            "PARK" -> CategoryInfo("PARK", "🌲 Park & Nature", "🌲", Color(0xFF22C55E))
-            "TEMPLE" -> CategoryInfo("TEMPLE", "🛕 Place of Worship", "🛕", Color(0xFFEAB308))
-            "POLICE" -> CategoryInfo("POLICE", "👮 Police & Highway Help", "👮", Color(0xFF3B82F6))
-            "TOLL" -> CategoryInfo("TOLL", "🛂 Toll Plaza", "🛂", Color(0xFF64748B))
-            "STORE" -> CategoryInfo("STORE", "🛒 Store & Shopping", "🛒", Color(0xFF10B981))
-            "CITY" -> CategoryInfo("CITY", "🏙️ City & Town Hub", "🏙️", Color(0xFF0284C7))
-            else -> CategoryInfo("LOCATION", "📍 Location on Map", "📍", Color(0xFF94A3B8))
+            "PETROL" -> CategoryInfo("PETROL", "24/7 Fuel Station", "⛽", Color(0xFFF59E0B))
+            "DHABA" -> CategoryInfo("DHABA", "Highway Dhaba & Food", "🍛", Color(0xFFF97316))
+            "RESTAURANT" -> CategoryInfo("RESTAURANT", "Restaurant & Dining", "🍽️", Color(0xFFFB923C))
+            "CAFE" -> CategoryInfo("CAFE", "Cafe & Bakery", "☕", Color(0xFFD97706))
+            "HOTEL" -> CategoryInfo("HOTEL", "Hotel & Lodging", "🏨", Color(0xFF6366F1))
+            "MECHANIC" -> CategoryInfo("MECHANIC", "Motorcycle Workshop", "🔧", Color(0xFF38BDF8))
+            "HOSPITAL" -> CategoryInfo("HOSPITAL", "Hospital & Emergency", "🏥", Color(0xFFEF4444))
+            "PHARMACY" -> CategoryInfo("PHARMACY", "Pharmacy & Chemist", "💊", Color(0xFFF43F5E))
+            "ATM" -> CategoryInfo("ATM", "ATM & Banking", "💳", Color(0xFF06B6D4))
+            "VIEWPOINT" -> CategoryInfo("VIEWPOINT", "Scenic Viewpoint", "🏔️", Color(0xFF8B5CF6))
+            "ATTRACTION" -> CategoryInfo("ATTRACTION", "Monument & Heritage", "🏛️", Color(0xFFA855F7))
+            "PARK" -> CategoryInfo("PARK", "Park & Nature", "🌲", Color(0xFF22C55E))
+            "TEMPLE" -> CategoryInfo("TEMPLE", "Place of Worship", "🛕", Color(0xFFEAB308))
+            "POLICE" -> CategoryInfo("POLICE", "Police & Highway Help", "👮", Color(0xFF3B82F6))
+            "TOLL" -> CategoryInfo("TOLL", "Toll Plaza", "🛂", Color(0xFF64748B))
+            "STORE" -> CategoryInfo("STORE", "Store & Shopping", "🛒", Color(0xFF10B981))
+            "CITY" -> CategoryInfo("CITY", "City & Town Hub", "🏙️", Color(0xFF0284C7))
+            else -> CategoryInfo("LOCATION", "Location on Map", "📍", Color(0xFF94A3B8))
+        }
+    }
+
+    fun getCategoryIcon(category: String): ImageVector {
+        return when (category.uppercase().trim()) {
+            "PETROL" -> MotoNavIcons.Fuel
+            "DHABA", "RESTAURANT" -> MotoNavIcons.Dhaba
+            "CAFE" -> MotoNavIcons.Cafe
+            "HOTEL" -> MotoNavIcons.Hotel
+            "MECHANIC" -> MotoNavIcons.Mechanic
+            "HOSPITAL", "PHARMACY" -> MotoNavIcons.Hospital
+            "ATM" -> MotoNavIcons.Atm
+            "VIEWPOINT" -> MotoNavIcons.Viewpoint
+            "ATTRACTION" -> MotoNavIcons.Landmark
+            "PARK" -> MotoNavIcons.Park
+            "TEMPLE" -> MotoNavIcons.Temple
+            "CITY" -> MotoNavIcons.City
+            "TOLL" -> MotoNavIcons.Toll
+            "STORE" -> MotoNavIcons.Store
+            else -> MotoNavIcons.LocationPin
         }
     }
 }

@@ -159,12 +159,20 @@ fun PoiDetailCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     // Category Badge
-                    Box(
+                    Row(
                         modifier = Modifier
-                            .background(categoryBadge.second.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
-                            .border(BorderStroke(1.dp, categoryBadge.second.copy(alpha = 0.4f)), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .background(categoryBadge.second.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                            .border(BorderStroke(1.dp, categoryBadge.second.copy(alpha = 0.35f)), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
+                        Icon(
+                            imageVector = com.motonav.data.model.CategoryResolver.getCategoryIcon(poi.category),
+                            contentDescription = null,
+                            tint = categoryBadge.second,
+                            modifier = Modifier.size(12.dp)
+                        )
                         Text(
                             text = categoryBadge.first,
                             color = categoryBadge.second,
@@ -176,13 +184,22 @@ fun PoiDetailCard(
                     }
 
                     // Proximity Pill
-                    Box(
+                    Row(
                         modifier = Modifier
                             .background(Color(0x3338BDF8), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .border(BorderStroke(1.dp, Color(0x2E38BDF8)), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
+                        Icon(
+                            imageVector = com.motonav.ui.theme.MotoNavIcons.NavigationArrow,
+                            contentDescription = null,
+                            tint = Color(0xFF38BDF8),
+                            modifier = Modifier.size(11.dp)
+                        )
                         Text(
-                            text = "📍 $distanceKmFormatted away",
+                            text = "$distanceKmFormatted away",
                             color = Color(0xFF38BDF8),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
@@ -266,11 +283,28 @@ fun PoiDetailCard(
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0x3338BDF8))
+                                    .border(BorderStroke(1.dp, Color(0x6638BDF8)), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = com.motonav.data.model.CategoryResolver.getCategoryIcon(poi.category),
+                                    contentDescription = null,
+                                    tint = Color(0xFF38BDF8),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "🏍️ ${poi.category}",
+                                text = poi.category,
                                 color = Color(0xFF38BDF8),
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(

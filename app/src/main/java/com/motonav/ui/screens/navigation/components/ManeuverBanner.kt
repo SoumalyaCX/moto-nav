@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -24,7 +25,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.motonav.data.model.ManeuverType
 import com.motonav.data.model.RouteManeuver
+import com.motonav.ui.theme.MotoNavIcons
 
+/**
+ * Enterprise-grade Motorcycle Maneuver Guidance Banner
+ * Oversized illuminated turn icon badge, specular glassmorphic frame,
+ * high-contrast distance indicators, and zero raw emojis.
+ */
 @Composable
 fun ManeuverBanner(
     maneuver: RouteManeuver,
@@ -38,15 +45,17 @@ fun ManeuverBanner(
         "${distanceToManeuverMeters.toInt()} m"
     }
 
-    val arrowSymbol = when (maneuver.type) {
-        ManeuverType.LEFT, ManeuverType.SHARP_LEFT -> "↰"
-        ManeuverType.SLIGHT_LEFT -> "↖"
-        ManeuverType.RIGHT, ManeuverType.SHARP_RIGHT -> "↱"
-        ManeuverType.SLIGHT_RIGHT -> "↗"
-        ManeuverType.U_TURN -> "⮌"
-        ManeuverType.ROUNDABOUT -> "⟳"
-        ManeuverType.ARRIVE -> "🏁"
-        else -> "↑"
+    val maneuverIcon = when (maneuver.type) {
+        ManeuverType.LEFT -> MotoNavIcons.TurnLeftManeuver
+        ManeuverType.SHARP_LEFT -> MotoNavIcons.TurnSharpLeftManeuver
+        ManeuverType.SLIGHT_LEFT -> MotoNavIcons.TurnSlightLeftManeuver
+        ManeuverType.RIGHT -> MotoNavIcons.TurnRightManeuver
+        ManeuverType.SHARP_RIGHT -> MotoNavIcons.TurnSharpRightManeuver
+        ManeuverType.SLIGHT_RIGHT -> MotoNavIcons.TurnSlightRightManeuver
+        ManeuverType.U_TURN -> MotoNavIcons.UTurnManeuver
+        ManeuverType.ROUNDABOUT -> MotoNavIcons.RoundaboutManeuver
+        ManeuverType.ARRIVE -> MotoNavIcons.Flag
+        else -> MotoNavIcons.StraightManeuver
     }
 
     val glassBorder = if (isOffRoute) {
@@ -72,20 +81,31 @@ fun ManeuverBanner(
                 color = if (isOffRoute) Color(0xD9991B1B) else Color(0xD90A0F1D)
             )
             .border(glassBorder, RoundedCornerShape(20.dp))
-            .padding(16.dp)
+            .padding(14.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Oversized maneuver arrow
-            Text(
-                text = arrowSymbol,
-                color = if (isOffRoute) Color.White else Color(0xFF38BDF8),
-                fontSize = 44.sp,
-                fontWeight = FontWeight.Black,
-                modifier = Modifier.size(54.dp)
-            )
+            // Oversized illuminated maneuver icon badge
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (isOffRoute) Color(0x33EF4444) else Color(0x2E38BDF8))
+                    .border(
+                        BorderStroke(1.dp, if (isOffRoute) Color(0xFFEF4444) else Color(0x4D38BDF8)),
+                        RoundedCornerShape(14.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = maneuverIcon,
+                    contentDescription = maneuver.instruction,
+                    tint = if (isOffRoute) Color.White else Color(0xFF38BDF8),
+                    modifier = Modifier.size(32.dp)
+                )
+            }
 
             Spacer(modifier = Modifier.width(14.dp))
 
@@ -93,8 +113,8 @@ fun ManeuverBanner(
                 if (isOffRoute) {
                     Text(
                         text = "OFF ROUTE — RECALCULATING",
-                        color = Color.Yellow,
-                        fontSize = 15.sp,
+                        color = Color(0xFFFBBF24),
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Black
                     )
                 } else {
@@ -109,7 +129,7 @@ fun ManeuverBanner(
                 Text(
                     text = maneuver.instruction,
                     color = Color.White,
-                    fontSize = 16.sp,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 2
                 )
@@ -117,8 +137,9 @@ fun ManeuverBanner(
                 if (maneuver.streetName.isNotBlank()) {
                     Text(
                         text = maneuver.streetName,
-                        color = Color.LightGray,
-                        fontSize = 13.sp
+                        color = Color(0xFFCBD5E1),
+                        fontSize = 12.sp,
+                        maxLines = 1
                     )
                 }
             }

@@ -87,6 +87,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import com.motonav.navigation.GpxParser
 import com.motonav.ui.screens.map.components.RouteIntelAccordion
+import com.motonav.ui.theme.MotoNavIcons
 import com.motonav.ui.widgets.BatteryWidget
 import com.motonav.ui.widgets.CockpitPulseIndicator
 import com.motonav.ui.widgets.CompassWidget
@@ -242,8 +243,22 @@ fun MapScreen(
                                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            val iconEmoji = com.motonav.data.model.CategoryResolver.getCategoryInfo(poi.category).emoji
-                                            Text(text = iconEmoji, fontSize = 20.sp)
+                                            val catInfo = com.motonav.data.model.CategoryResolver.getCategoryInfo(poi.category)
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(32.dp)
+                                                    .clip(CircleShape)
+                                                    .background(catInfo.color.copy(alpha = 0.15f))
+                                                    .border(BorderStroke(1.dp, catInfo.color.copy(alpha = 0.35f)), CircleShape),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = com.motonav.data.model.CategoryResolver.getCategoryIcon(poi.category),
+                                                    contentDescription = poi.category,
+                                                    tint = catInfo.color,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
                                             Spacer(modifier = Modifier.width(10.dp))
                                             Column(modifier = Modifier.weight(1f)) {
                                                 Text(
@@ -344,12 +359,24 @@ fun MapScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column {
-                                Text(
-                                    text = "🏍️ Motorcycle Route (${route.ridingStyle})",
-                                    color = Color(0xFF38BDF8),
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = MotoNavIcons.Bike,
+                                        contentDescription = null,
+                                        tint = Color(0xFF38BDF8),
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Text(
+                                        text = "ROUTE (${route.ridingStyle})",
+                                        color = Color(0xFF38BDF8),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 0.5.sp
+                                    )
+                                }
                                 Text(
                                     text = "${route.distanceKmFormatted} · ${route.etaDurationFormatted}",
                                     color = Color.White,
@@ -375,13 +402,13 @@ fun MapScreen(
                             ) {
                                 uiState.availableRoutes.forEachIndexed { index, optRoute ->
                                     val isSelected = index == uiState.selectedRouteFlavorIndex
-                                    val label = when (optRoute.ridingStyle) {
-                                        "FASTEST" -> "⚡ Fastest"
-                                        "CURVY" -> "🏍️ Curvy"
-                                        "SCENIC" -> "🌄 Scenic"
-                                        else -> optRoute.ridingStyle
+                                    val (flavorIcon, flavorLabel) = when (optRoute.ridingStyle) {
+                                        "FASTEST" -> MotoNavIcons.Fastest to "Fastest"
+                                        "CURVY" -> MotoNavIcons.Curvy to "Curvy"
+                                        "SCENIC" -> MotoNavIcons.Viewpoint to "Scenic"
+                                        else -> MotoNavIcons.NavigationArrow to optRoute.ridingStyle
                                     }
-                                    Box(
+                                    Row(
                                         modifier = Modifier
                                             .weight(1f)
                                             .clip(RoundedCornerShape(10.dp))
@@ -391,14 +418,23 @@ fun MapScreen(
                                                 RoundedCornerShape(10.dp)
                                             )
                                             .clickable { viewModel.selectRouteFlavor(index) }
-                                            .padding(vertical = 6.dp),
-                                        contentAlignment = Alignment.Center
+                                            .padding(vertical = 7.dp, horizontal = 4.dp),
+                                        horizontalArrangement = Arrangement.Center,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
+                                        Icon(
+                                            imageVector = flavorIcon,
+                                            contentDescription = null,
+                                            tint = if (isSelected) Color.White else Color(0xFF38BDF8),
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
                                         Text(
-                                            text = label,
+                                            text = flavorLabel,
                                             color = if (isSelected) Color.White else Color.LightGray,
                                             fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1
                                         )
                                     }
                                 }
@@ -1254,7 +1290,7 @@ private fun updateMapCameraAndLayers(
             map.addMarker(
                 MarkerOptions()
                     .position(dest)
-                    .title("🏁 Destination")
+                    .title("Destination")
             )
         }
     }
@@ -1262,12 +1298,11 @@ private fun updateMapCameraAndLayers(
     // Draw POIs with rich Google Maps density and accurate category iconography (up to 350 simultaneous places)
     uiState.nearbyPois.take(350).forEach { poi ->
         val isSelected = uiState.selectedPoi?.osmId == poi.osmId
-        val emoji = com.motonav.data.model.CategoryResolver.getCategoryInfo(poi.category).emoji
-        val prefix = if (isSelected) "⭐ " else ""
+        val prefix = if (isSelected) "Selected: " else ""
         map.addMarker(
             MarkerOptions()
                 .position(MapLibreLatLng(poi.latitude, poi.longitude))
-                .title("$prefix$emoji ${poi.name}")
+                .title("$prefix${poi.name}")
                 .snippet(poi.address ?: poi.brand ?: "")
         )
     }
@@ -1276,7 +1311,7 @@ private fun updateMapCameraAndLayers(
     map.addMarker(
         MarkerOptions()
             .position(userPos)
-            .title("🏍️ My Location")
+            .title("My Location")
             .snippet("${uiState.speedKmh.toInt()} km/h")
     )
 }

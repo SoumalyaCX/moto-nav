@@ -41,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -48,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import com.motonav.data.local.DarkModePreference
 import com.motonav.data.local.PreferencesStore
 import com.motonav.integrations.whatsapp.WANotificationService
+import com.motonav.ui.theme.MotoNavIcons
 import kotlinx.coroutines.launch
 
 @Composable
@@ -105,7 +107,7 @@ fun SettingsScreen(
         ) {
             // Offline Vector Map Downloads (Moved from map HUD)
             item {
-                SettingsCard(title = "📥 Offline Vector Maps") {
+                SettingsCard(title = "Offline Vector Maps", icon = MotoNavIcons.Store) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -140,7 +142,7 @@ fun SettingsScreen(
 
             // Ride Logbook & Telemetry History
             item {
-                SettingsCard(title = "🏍️ Ride Logbook & Telemetry History") {
+                SettingsCard(title = "Ride Logbook & Telemetry History", icon = MotoNavIcons.Bike) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -172,7 +174,7 @@ fun SettingsScreen(
 
             // 1. Dark Mode / Theme Section (Auto + Manual as requested)
             item {
-                SettingsCard(title = "🌓 Map Theme & Dark Mode") {
+                SettingsCard(title = "Map Theme & Dark Mode", icon = MotoNavIcons.Viewpoint) {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         ThemeOptionRow(
                             title = "Auto (Sunset / Sunrise)",
@@ -198,7 +200,7 @@ fun SettingsScreen(
 
             // 2. Motorcycle Routing Preferences
             item {
-                SettingsCard(title = "🏍️ Motorcycle Routing Engine") {
+                SettingsCard(title = "Motorcycle Routing Engine", icon = MotoNavIcons.Curvy) {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
                             text = "Riding Profile Weighting",
@@ -290,7 +292,7 @@ fun SettingsScreen(
 
             // 3. Audio & Helmet Bluetooth
             item {
-                SettingsCard(title = "🎧 Helmet Intercom & Audio Guidance") {
+                SettingsCard(title = "Helmet Intercom & Audio Guidance", icon = MotoNavIcons.Music) {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         SwitchRow(
                             title = "Ducking on Voice Guidance",
@@ -310,7 +312,7 @@ fun SettingsScreen(
 
             // 4. Spotify & WhatsApp Notification Access
             item {
-                SettingsCard(title = "🎵 Spotify Singer & 💬 WhatsApp Peek") {
+                SettingsCard(title = "Spotify & WhatsApp Notification Access", icon = MotoNavIcons.LocationPin) {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -349,7 +351,7 @@ fun SettingsScreen(
 
             // 5. Battery Saver Ride Mode
             item {
-                SettingsCard(title = "🔋 Battery Ride Optimization") {
+                SettingsCard(title = "Battery Ride Optimization", icon = MotoNavIcons.BatteryCharging) {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         SwitchRow(
                             title = "Enable Ride Preservation Mode",
@@ -373,6 +375,7 @@ fun SettingsScreen(
 @Composable
 fun SettingsCard(
     title: String,
+    icon: ImageVector? = null,
     content: @Composable () -> Unit
 ) {
     Card(
@@ -381,12 +384,25 @@ fun SettingsCard(
         colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = title,
-                color = Color.White,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (icon != null) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = Color(0xFF38BDF8),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Text(
+                    text = title,
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
             Spacer(modifier = Modifier.height(10.dp))
             content()
         }

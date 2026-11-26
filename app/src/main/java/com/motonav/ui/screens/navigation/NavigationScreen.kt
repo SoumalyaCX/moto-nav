@@ -63,6 +63,7 @@ import com.motonav.navigation.FerrostarBridge
 import com.motonav.navigation.NavigationStatus
 import com.motonav.ui.screens.navigation.components.ETABar
 import com.motonav.ui.screens.navigation.components.ManeuverBanner
+import com.motonav.ui.theme.MotoNavIcons
 import com.motonav.ui.widgets.BatteryWidget
 import com.motonav.ui.widgets.CompassWidget
 import com.motonav.ui.widgets.LeanAngleWidget
@@ -388,27 +389,57 @@ fun NavigationScreen(
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(24.dp)
+                        modifier = Modifier
+                            .padding(24.dp)
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(Color(0xD90A0F1D))
+                            .border(
+                                BorderStroke(
+                                    1.dp,
+                                    androidx.compose.ui.graphics.Brush.linearGradient(
+                                        listOf(Color(0x55FFFFFF), Color(0x3310B981), Color(0x0AFFFFFF))
+                                    )
+                                ),
+                                RoundedCornerShape(24.dp)
+                            )
+                            .padding(28.dp)
                     ) {
-                        Text(
-                            text = "🏁 Destination Reached!",
-                            color = Color(0xFF10B981),
-                            fontSize = 26.sp,
-                            fontWeight = FontWeight.Black
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(CircleShape)
+                                .background(Color(0x2E10B981))
+                                .border(BorderStroke(1.dp, Color(0xFF10B981)), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = MotoNavIcons.Flag,
+                                contentDescription = "Destination Reached",
+                                tint = Color(0xFF10B981),
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = "Great ride! Hope you enjoyed the curves.",
-                            color = Color.White,
-                            fontSize = 16.sp
+                            text = "Destination Reached",
+                            color = Color(0xFF10B981),
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Black
                         )
-                        Spacer(modifier = Modifier.height(24.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Great ride! Hope you enjoyed the curves.",
+                            color = Color(0xFFCBD5E1),
+                            fontSize = 15.sp
+                        )
+                        Spacer(modifier = Modifier.height(20.dp))
                         Button(
                             onClick = onEndRide,
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.height(46.dp)
                         ) {
-                            Text("Back to Map", fontWeight = FontWeight.Bold)
+                            Text("BACK TO MAP", fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
                         }
                     }
                 }
@@ -666,7 +697,7 @@ private fun updateNavCameraAndRoute(
             map.addMarker(
                 MarkerOptions()
                     .position(dest)
-                    .title("🏁 Destination")
+                    .title("Destination")
             )
         }
     } else if (route == null) {
@@ -678,12 +709,12 @@ private fun updateNavCameraAndRoute(
     val riderMarker = map.markers.firstOrNull { it.title?.contains("Speed:") == true || it.title?.contains("🏍️") == true }
     if (riderMarker != null) {
         riderMarker.position = riderPos
-        riderMarker.title = "🏍️ Speed: ${status.currentSpeedKmh.toInt()} km/h"
+        riderMarker.title = "Speed: ${status.currentSpeedKmh.toInt()} km/h"
     } else {
         map.addMarker(
             MarkerOptions()
                 .position(riderPos)
-                .title("🏍️ Speed: ${status.currentSpeedKmh.toInt()} km/h")
+                .title("Speed: ${status.currentSpeedKmh.toInt()} km/h")
         )
     }
 }

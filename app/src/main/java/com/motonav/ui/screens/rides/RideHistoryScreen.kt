@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.motonav.data.local.db.entities.RideEntity
 import com.motonav.data.repository.RideRepository
+import com.motonav.ui.theme.MotoNavIcons
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -77,8 +78,15 @@ fun RideHistoryScreen(
                 )
             }
             Spacer(modifier = Modifier.width(4.dp))
+            Icon(
+                imageVector = MotoNavIcons.Bike,
+                contentDescription = null,
+                tint = Color(0xFF38BDF8),
+                modifier = Modifier.size(22.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = "🏍️ Ride Logbook & Telemetry",
+                text = "Ride Logbook & Telemetry",
                 color = Color.White,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
