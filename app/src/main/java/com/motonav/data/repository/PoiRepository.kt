@@ -893,19 +893,6 @@ class PoiRepository @Inject constructor(
         } catch (e: Exception) {
             Log.d(TAG, "Overpass bbox query error: ${e.message}")
         }
-                                brand = brand,
-                                address = address,
-                                phone = phone,
-                                openingHours = hours,
-                                regionId = region.id
-                            )
-                        )
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            Log.d(TAG, "Overpass bbox query error: ${e.message}")
-        }
 
         // 4. Batch insert all collected POIs into Room SQLite DB
         if (downloadedPois.isNotEmpty()) {
